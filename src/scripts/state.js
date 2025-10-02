@@ -4,7 +4,7 @@ export const state = {
             businessName: 'Mi Negocio',
             whatsapp: '',
             email: '',
-            password: 'admin123',
+            password: '',
             logo: '',
             colors: {
                 primary: '#2563eb',

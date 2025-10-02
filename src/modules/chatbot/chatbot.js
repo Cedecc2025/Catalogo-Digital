@@ -46,8 +46,8 @@ export function sendQuickMessage(option) {
     setTimeout(() => appendMessage('bot', message), 400);
 }
 
-function saveChatbotSettings() {
-    callbacks.onSave?.({
+async function saveChatbotSettings() {
+    await callbacks.onSave?.({
         enabled: document.getElementById('botEnabled').checked,
         name: document.getElementById('botName').value.trim(),
         welcome: document.getElementById('botWelcome').value.trim(),

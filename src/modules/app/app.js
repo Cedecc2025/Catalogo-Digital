@@ -1,5 +1,5 @@
 import { state, setAdminMode, setLastSaleData } from '../../scripts/state.js';
-import { initializeStorage, loadData, saveData, exportData, importData, factoryReset } from '../../scripts/storage.js';
+import { exportData, importData, factoryReset } from '../../scripts/storage.js';
 import * as catalogModule from '../catalog/catalog.js';
 import * as dashboardModule from '../dashboard/dashboard.js';
 import * as salesModule from '../sales/sales.js';
@@ -9,21 +9,14 @@ import * as chatbotModule from '../chatbot/chatbot.js';
 import * as settingsModule from '../settings/settings.js';
 
 let appCallbacks = { onLogout: null };
+const MAX_NOTIFICATIONS = 50;
 
 export async function initApp({ user, onLogout }) {
     appCallbacks.onLogout = onLogout;
     state.user = user;
     setAdminMode(true);
 
-    const firstRun = initializeStorage();
-    if (!firstRun) {
-        loadData();
-    }
-
-    if (state.appData.products.length === 0) {
-        seedDefaultProducts();
-        saveData();
-    }
+    await loadUserData();
 
     setupHeader();
     setupNavigation();
@@ -35,8 +28,8 @@ export async function initApp({ user, onLogout }) {
         onDeleteProduct: handleDeleteProduct,
         onAddToCart: handleAddToCart,
         onCheckout: handleCheckout,
-        onSaveImage: () => saveData(),
-        onCartChange: () => saveData(),
+        onSaveImage: () => {},
+        onCartChange: () => {},
         onNotify: showToast
     });
 
@@ -60,35 +53,169 @@ export async function initApp({ user, onLogout }) {
     });
 
     renderApp();
+}
 
-    if (firstRun) {
-        showToast('Sistema listo. Configura tu negocio en ⚙️ Config.', 'info');
+async function loadUserData() {
+    if (!state.supabase || !state.user) return;
+    const userId = state.user.id;
+
+    try {
+        const [productsRes, clientsRes, salesRes, notificationsRes, settingsRes, chatbotRes] = await Promise.all([
+            state.supabase
+                .from('products')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false }),
+            state.supabase
+                .from('clients')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false }),
+            state.supabase
+                .from('sales')
+                .select('*, client:clients(id, name, phone, address), sale_items(product_id, name, quantity, price)')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false }),
+            state.supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false }),
+            state.supabase
+                .from('business_settings')
+                .select('*')
+                .eq('user_id', userId)
+                .maybeSingle(),
+            state.supabase
+                .from('chatbot_settings')
+                .select('*')
+                .eq('user_id', userId)
+                .maybeSingle()
+        ]);
+
+        if (productsRes.error) throw productsRes.error;
+        if (clientsRes.error) throw clientsRes.error;
+        if (salesRes.error) throw salesRes.error;
+        if (notificationsRes.error) throw notificationsRes.error;
+        if (settingsRes.error) throw settingsRes.error;
+        if (chatbotRes.error) throw chatbotRes.error;
+
+        state.appData.products = (productsRes.data ?? []).map(mapProduct);
+        state.appData.clients = (clientsRes.data ?? []).map(mapClient);
+        state.appData.sales = (salesRes.data ?? []).map(mapSale);
+        state.appData.notifications = (notificationsRes.data ?? []).map(mapNotification).slice(0, MAX_NOTIFICATIONS);
+        state.appData.settings = {
+            ...state.appData.settings,
+            ...mapBusinessSettings(settingsRes.data)
+        };
+        state.appData.chatbot = {
+            ...state.appData.chatbot,
+            ...mapChatbotSettings(chatbotRes.data)
+        };
+    } catch (error) {
+        console.error('No fue posible cargar datos del usuario', error);
+        showToast('No fue posible cargar la información de Supabase', 'error');
     }
 }
 
-function seedDefaultProducts() {
-    state.appData.products = [
-        {
-            id: crypto.randomUUID(),
-            name: 'Café Gourmet 250g',
-            description: 'Café costarricense de altura con notas de chocolate y frutos rojos.',
-            category: 'Alimentos',
-            price: 5800,
-            stock: 12,
-            image: '',
-            createdAt: new Date().toISOString()
-        },
-        {
-            id: crypto.randomUUID(),
-            name: 'Termo Acero Inoxidable',
-            description: 'Termo de 600ml con aislamiento de doble capa, mantiene la temperatura por 12h.',
-            category: 'Tecnología',
-            price: 12900,
-            stock: 8,
-            image: '',
-            createdAt: new Date().toISOString()
+function mapProduct(row) {
+    return {
+        id: row.id,
+        name: row.name,
+        description: row.description ?? '',
+        category: row.category ?? 'General',
+        price: Number(row.price ?? 0),
+        stock: Number(row.stock ?? 0),
+        image: row.image_url ?? '',
+        createdAt: row.created_at
+    };
+}
+
+function mapClient(row) {
+    return {
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        address: row.address ?? '',
+        totalSpent: Number(row.total_spent ?? 0),
+        purchases: Number(row.purchases ?? 0),
+        createdAt: row.created_at
+    };
+}
+
+function mapSale(row) {
+    const items = (row.sale_items ?? []).map((item) => ({
+        id: item.product_id,
+        name: item.name,
+        quantity: Number(item.quantity ?? 0),
+        price: Number(item.price ?? 0)
+    }));
+    const client = row.client
+        ? {
+              id: row.client.id,
+              name: row.client.name ?? 'Cliente',
+              phone: row.client.phone ?? '',
+              address: row.client.address ?? ''
+          }
+        : {
+              id: null,
+              name: 'Cliente',
+              phone: '',
+              address: ''
+          };
+    return {
+        id: row.id,
+        date: row.created_at,
+        client,
+        items,
+        subtotal: Number(row.subtotal ?? 0),
+        tax: Number(row.tax ?? 0),
+        total: Number(row.total ?? 0),
+        status: row.status ?? 'Pendiente',
+        source: row.source ?? 'Catálogo'
+    };
+}
+
+function mapNotification(row) {
+    return {
+        id: row.id,
+        title: row.title,
+        description: row.body ?? '',
+        type: row.type ?? 'info',
+        read: Boolean(row.read),
+        createdAt: row.created_at
+    };
+}
+
+function mapBusinessSettings(row) {
+    if (!row) return {};
+    return {
+        businessName: row.business_name ?? '',
+        logo: row.logo_url ?? '',
+        whatsapp: row.whatsapp ?? '',
+        email: row.email ?? '',
+        colors: {
+            primary: row.primary_color ?? state.appData.settings.colors.primary,
+            bgColor1: row.gradient_start ?? state.appData.settings.colors.bgColor1,
+            bgColor2: row.gradient_end ?? state.appData.settings.colors.bgColor2
         }
-    ];
+    };
+}
+
+function mapChatbotSettings(row) {
+    if (!row) return {};
+    return {
+        enabled: row.enabled ?? true,
+        name: row.assistant_name ?? 'Asistente Virtual',
+        welcome: row.welcome_message ?? state.appData.chatbot.welcome,
+        quickResponses: {
+            ...state.appData.chatbot.quickResponses,
+            horario: row.quick_hours ?? state.appData.chatbot.quickResponses.horario,
+            entrega: row.quick_delivery ?? state.appData.chatbot.quickResponses.entrega,
+            pago: row.quick_payment ?? state.appData.chatbot.quickResponses.pago,
+            contacto: row.quick_contact ?? state.appData.chatbot.quickResponses.contacto
+        }
+    };
 }
 
 function setupHeader() {
@@ -139,45 +266,115 @@ function setupNavigation() {
     });
 }
 
-function handleCreateProduct(product) {
-    state.appData.products.push({
-        ...product,
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString()
-    });
-    saveData();
-    addNotification({
-        title: 'Nuevo producto',
-        description: `${product.name} agregado al catálogo`,
-        type: 'success'
-    });
-    renderApp();
+async function handleCreateProduct(product) {
+    if (!state.supabase || !state.user) {
+        showToast('No hay conexión con Supabase', 'error');
+        return;
+    }
+
+    try {
+        const { data, error } = await state.supabase
+            .from('products')
+            .insert({
+                user_id: state.user.id,
+                name: product.name,
+                description: product.description,
+                category: product.category,
+                price: product.price,
+                stock: product.stock,
+                image_url: product.image || null
+            })
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        const mapped = mapProduct(data);
+        state.appData.products.unshift(mapped);
+        await addNotification({
+            title: 'Nuevo producto',
+            description: `${product.name} agregado al catálogo`,
+            type: 'success'
+        });
+        renderApp();
+    } catch (error) {
+        console.error('No fue posible crear el producto', error);
+        showToast('No se pudo guardar el producto', 'error');
+    }
 }
 
-function handleUpdateProduct(productId, changes) {
-    const product = state.appData.products.find((item) => item.id === productId);
-    if (!product) return;
-    Object.assign(product, changes);
-    saveData();
-    addNotification({
-        title: 'Producto actualizado',
-        description: `${product.name} se actualizó correctamente`,
-        type: 'info'
-    });
-    renderApp();
+async function handleUpdateProduct(productId, changes) {
+    if (!state.supabase || !state.user) {
+        showToast('No hay conexión con Supabase', 'error');
+        return;
+    }
+
+    try {
+        const { data, error } = await state.supabase
+            .from('products')
+            .update({
+                name: changes.name,
+                description: changes.description,
+                category: changes.category,
+                price: changes.price,
+                stock: changes.stock,
+                image_url: changes.image || null
+            })
+            .eq('id', productId)
+            .eq('user_id', state.user.id)
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        const updated = mapProduct(data);
+        const index = state.appData.products.findIndex((item) => item.id === productId);
+        if (index >= 0) {
+            state.appData.products[index] = updated;
+        }
+
+        await addNotification({
+            title: 'Producto actualizado',
+            description: `${updated.name} se actualizó correctamente`,
+            type: 'info'
+        });
+        renderApp();
+    } catch (error) {
+        console.error('No fue posible actualizar el producto', error);
+        showToast('No se pudo actualizar el producto', 'error');
+    }
 }
 
-function handleDeleteProduct(productId) {
+async function handleDeleteProduct(productId) {
+    if (!state.supabase || !state.user) {
+        showToast('No hay conexión con Supabase', 'error');
+        return;
+    }
+
     const product = state.appData.products.find((item) => item.id === productId);
-    state.appData.products = state.appData.products.filter((item) => item.id !== productId);
-    state.appData.cart = state.appData.cart.filter((item) => item.id !== productId);
-    saveData();
-    addNotification({
-        title: 'Producto eliminado',
-        description: `${product?.name ?? 'Producto'} fue eliminado del catálogo`,
-        type: 'warning'
-    });
-    renderApp();
+
+    try {
+        const { error } = await state.supabase
+            .from('products')
+            .delete()
+            .eq('id', productId)
+            .eq('user_id', state.user.id);
+
+        if (error) throw error;
+
+        state.appData.products = state.appData.products.filter((item) => item.id !== productId);
+        state.appData.cart = state.appData.cart.filter((item) => item.id !== productId);
+
+        await addNotification({
+            title: 'Producto eliminado',
+            description: `${product?.name ?? 'Producto'} fue eliminado del catálogo`,
+            type: 'warning'
+        });
+        renderApp();
+    } catch (error) {
+        console.error('No fue posible eliminar el producto', error);
+        showToast('No se pudo eliminar el producto', 'error');
+    }
 }
 
 function handleAddToCart(productId) {
@@ -189,114 +386,298 @@ function handleAddToCart(productId) {
     } else {
         state.appData.cart.push({ id: productId, quantity: 1 });
     }
-    saveData();
     catalogModule.renderCart(state);
     catalogModule.updateCartBadge(state);
 }
 
-function handleCheckout(order) {
-    const saleId = crypto.randomUUID();
-    const saleRecord = {
-        id: saleId,
-        date: new Date().toISOString(),
-        client: order.client,
-        items: order.items,
-        subtotal: order.subtotal,
-        tax: order.tax,
-        total: order.total,
-        status: 'Pendiente',
-        source: order.source || 'Catálogo'
-    };
+async function recordSale(order, notification) {
+    if (!state.supabase || !state.user) {
+        showToast('No hay conexión con Supabase', 'error');
+        throw new Error('Supabase no inicializado');
+    }
 
-    state.appData.sales.push(saleRecord);
-    upsertClient(order.client, order.total);
+    const clientRecord = await upsertClient(order.client);
 
-    order.items.forEach((item) => {
-        const product = state.appData.products.find((p) => p.id === item.id);
-        if (product) {
-            product.stock = Math.max(product.stock - item.quantity, 0);
+    const { data: saleData, error: saleError } = await state.supabase
+        .from('sales')
+        .insert({
+            user_id: state.user.id,
+            client_id: clientRecord?.id ?? null,
+            subtotal: order.subtotal,
+            tax: order.tax,
+            total: order.total,
+            status: 'Pendiente',
+            source: order.source || 'Catálogo'
+        })
+        .select('*, client:clients(id, name, phone, address)')
+        .single();
+
+    if (saleError) {
+        console.error('No fue posible guardar la venta', saleError);
+        showToast('No se pudo registrar la venta', 'error');
+        throw saleError;
+    }
+
+    const saleItemsPayload = order.items.map((item) => ({
+        sale_id: saleData.id,
+        product_id: item.id || null,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price
+    }));
+
+    if (saleItemsPayload.length > 0) {
+        const { error: itemsError } = await state.supabase.from('sale_items').insert(saleItemsPayload);
+        if (itemsError) {
+            console.error('No fue posible guardar los productos de la venta', itemsError);
+            showToast('No se pudieron guardar los productos de la venta', 'error');
+            throw itemsError;
         }
-    });
+    }
 
-    state.appData.cart = [];
-    saveData();
-    setLastSaleData(saleRecord);
-    addNotification({
-        title: 'Pedido recibido',
-        description: `Nuevo pedido de ${order.client.name}`,
-        type: 'success'
-    });
-    showPurchasePopup(order);
-    renderApp();
-}
+    await Promise.all(
+        order.items.map(async (item) => {
+            if (!item.id) return;
+            const product = state.appData.products.find((p) => p.id === item.id);
+            if (!product) return;
+            const newStock = Math.max(product.stock - item.quantity, 0);
+            const { data, error } = await state.supabase
+                .from('products')
+                .update({ stock: newStock })
+                .eq('id', product.id)
+                .eq('user_id', state.user.id)
+                .select('*')
+                .single();
+            if (error) {
+                console.error('No fue posible actualizar el stock', error);
+                return;
+            }
+            const updated = mapProduct(data);
+            const index = state.appData.products.findIndex((p) => p.id === updated.id);
+            if (index >= 0) {
+                state.appData.products[index] = updated;
+            }
+        })
+    );
 
-function handleUpdateSaleStatus(saleId, status) {
-    const sale = state.appData.sales.find((item) => item.id === saleId);
-    if (!sale) return;
-    sale.status = status;
-    saveData();
-    renderApp();
-}
-
-function handleRegisterSale(order) {
-    const saleId = crypto.randomUUID();
-    const saleRecord = {
-        id: saleId,
-        date: new Date().toISOString(),
-        client: order.client,
-        items: order.items,
-        subtotal: order.subtotal,
-        tax: order.tax,
-        total: order.total,
-        status: 'Pendiente',
-        source: order.source || 'WhatsApp'
-    };
+    const saleRecord = mapSale({ ...saleData, sale_items: saleItemsPayload });
     state.appData.sales.push(saleRecord);
-    upsertClient(order.client, order.total);
-    saveData();
-    addNotification({
-        title: 'Venta registrada',
-        description: `Se registró la venta de ${order.client.name}`,
-        type: 'info'
-    });
-    renderApp();
+
+    await addNotification(notification);
+
+    return saleRecord;
 }
 
-function upsertClient(client, saleTotal) {
-    const existing = state.appData.clients.find((c) => c.phone === client.phone);
-    if (existing) {
-        existing.purchases += 1;
-        existing.totalSpent += saleTotal;
-        existing.name = client.name;
-        existing.address = client.address;
-    } else {
-        state.appData.clients.push({
-            ...client,
-            purchases: 1,
-            totalSpent: saleTotal
+async function handleCheckout(order) {
+    try {
+        const saleRecord = await recordSale(order, {
+            title: 'Pedido recibido',
+            description: `Nuevo pedido de ${order.client.name}`,
+            type: 'success'
         });
+        state.appData.cart = [];
+        setLastSaleData(saleRecord);
+        showPurchasePopup(order);
+        renderApp();
+    } catch (error) {
+        console.error('Error durante el checkout', error);
     }
 }
 
-function handleSaveChatbot(settings) {
-    state.appData.chatbot = { ...state.appData.chatbot, ...settings };
-    saveData();
-    renderApp();
-    showToast('Configuración del chatbot guardada', 'success');
+async function handleUpdateSaleStatus(saleId, status) {
+    if (!state.supabase || !state.user) {
+        showToast('No hay conexión con Supabase', 'error');
+        return;
+    }
+
+    try {
+        const { data, error } = await state.supabase
+            .from('sales')
+            .update({ status })
+            .eq('id', saleId)
+            .eq('user_id', state.user.id)
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        const sale = state.appData.sales.find((item) => item.id === saleId);
+        if (sale) {
+            sale.status = data.status ?? status;
+        }
+        renderApp();
+    } catch (error) {
+        console.error('No fue posible actualizar el estado de la venta', error);
+        showToast('No se pudo actualizar el estado de la venta', 'error');
+    }
 }
 
-function handleSaveSettings(settings) {
+async function handleRegisterSale(order) {
+    try {
+        await recordSale(order, {
+            title: 'Venta registrada',
+            description: `Se registró la venta de ${order.client.name}`,
+            type: 'info'
+        });
+        renderApp();
+    } catch (error) {
+        console.error('Error al registrar la venta', error);
+    }
+}
+
+async function upsertClient(client) {
+    if (!state.supabase || !state.user) return null;
+
+    const existing = state.appData.clients.find((c) => c.phone === client.phone);
+
+    try {
+        if (existing) {
+            const { data, error } = await state.supabase
+                .from('clients')
+                .update({
+                    name: client.name,
+                    phone: client.phone,
+                    address: client.address
+                })
+                .eq('id', existing.id)
+                .eq('user_id', state.user.id)
+                .select('*')
+                .single();
+
+            if (error) throw error;
+
+            const updated = mapClient(data);
+            const index = state.appData.clients.findIndex((c) => c.id === updated.id);
+            if (index >= 0) {
+                state.appData.clients[index] = updated;
+            }
+            return updated;
+        }
+
+        const { data, error } = await state.supabase
+            .from('clients')
+            .insert({
+                user_id: state.user.id,
+                name: client.name,
+                phone: client.phone,
+                address: client.address
+            })
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        const created = mapClient(data);
+        state.appData.clients.push(created);
+        return created;
+    } catch (error) {
+        console.error('No fue posible sincronizar el cliente', error);
+        showToast('No se pudo guardar el cliente', 'error');
+        return existing ?? null;
+    }
+}
+
+async function handleSaveChatbot(settings) {
+    if (!state.supabase || !state.user) {
+        showToast('No hay conexión con Supabase', 'error');
+        return;
+    }
+
+    const payload = {
+        user_id: state.user.id,
+        enabled: settings.enabled,
+        assistant_name: settings.name,
+        welcome_message: settings.welcome,
+        quick_hours: settings.quickResponses.horario,
+        quick_delivery: settings.quickResponses.entrega,
+        quick_payment: settings.quickResponses.pago,
+        quick_contact: settings.quickResponses.contacto
+    };
+
+    try {
+        const { data, error } = await state.supabase
+            .from('chatbot_settings')
+            .upsert(payload, { onConflict: 'user_id' })
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        state.appData.chatbot = {
+            ...state.appData.chatbot,
+            ...mapChatbotSettings(data)
+        };
+        renderApp();
+        showToast('Configuración del chatbot guardada', 'success');
+    } catch (error) {
+        console.error('No fue posible guardar el chatbot', error);
+        showToast('No se pudo guardar la configuración del chatbot', 'error');
+    }
+}
+
+function toBusinessSettingsPayload(settings) {
+    return {
+        user_id: state.user?.id,
+        business_name: settings.businessName || null,
+        logo_url: settings.logo || null,
+        whatsapp: settings.whatsapp || null,
+        email: settings.email || null,
+        primary_color: settings.colors.primary || null,
+        gradient_start: settings.colors.bgColor1 || null,
+        gradient_end: settings.colors.bgColor2 || null
+    };
+}
+
+async function handleSaveSettings(settings) {
+    if (!state.supabase || !state.user) {
+        showToast('No hay conexión con Supabase', 'error');
+        return;
+    }
+
     state.appData.settings = { ...state.appData.settings, ...settings };
-    saveData();
-    applySettingsToUI();
-    renderApp();
-    showToast('Configuración guardada correctamente', 'success');
+
+    try {
+        const { data, error } = await state.supabase
+            .from('business_settings')
+            .upsert(toBusinessSettingsPayload(state.appData.settings), { onConflict: 'user_id' })
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        state.appData.settings = {
+            ...state.appData.settings,
+            ...mapBusinessSettings(data)
+        };
+        applySettingsToUI();
+        renderApp();
+        showToast('Configuración guardada correctamente', 'success');
+    } catch (error) {
+        console.error('No fue posible guardar la configuración', error);
+        showToast('No se pudo guardar la configuración', 'error');
+    }
 }
 
-function handleColorChange(colors) {
+async function handleColorChange(colors) {
     state.appData.settings.colors = colors;
     applySettingsToUI();
-    saveData();
+
+    if (!state.supabase || !state.user) return;
+
+    try {
+        const { data, error } = await state.supabase
+            .from('business_settings')
+            .upsert(toBusinessSettingsPayload(state.appData.settings), { onConflict: 'user_id' })
+            .select('*')
+            .single();
+        if (error) throw error;
+        state.appData.settings = {
+            ...state.appData.settings,
+            ...mapBusinessSettings(data)
+        };
+    } catch (error) {
+        console.error('No fue posible actualizar los colores', error);
+    }
 }
 
 function setupNotificationCenter() {
@@ -318,25 +699,67 @@ function toggleNotificationCenter() {
     dropdown?.classList.toggle('show');
 }
 
-function addNotification(notification) {
-    state.appData.notifications.unshift({
+async function addNotification(notification) {
+    const localNotification = {
         id: crypto.randomUUID(),
+        title: notification.title,
+        description: notification.description,
+        type: notification.type,
         read: false,
-        createdAt: new Date().toISOString(),
-        ...notification
-    });
-    if (state.appData.notifications.length > 50) {
-        state.appData.notifications.length = 50;
+        createdAt: new Date().toISOString()
+    };
+
+    if (!state.supabase || !state.user) {
+        state.appData.notifications.unshift(localNotification);
+        if (state.appData.notifications.length > MAX_NOTIFICATIONS) {
+            state.appData.notifications.length = MAX_NOTIFICATIONS;
+        }
+        renderNotifications();
+        showToast(notification.description, notification.type);
+        return;
     }
-    saveData();
-    renderNotifications();
-    showToast(notification.description, notification.type);
+
+    try {
+        const { data, error } = await state.supabase
+            .from('notifications')
+            .insert({
+                user_id: state.user.id,
+                title: notification.title,
+                body: notification.description,
+                type: notification.type
+            })
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        state.appData.notifications.unshift(mapNotification(data));
+    } catch (error) {
+        console.error('No fue posible registrar la notificación', error);
+        state.appData.notifications.unshift(localNotification);
+    } finally {
+        if (state.appData.notifications.length > MAX_NOTIFICATIONS) {
+            state.appData.notifications.length = MAX_NOTIFICATIONS;
+        }
+        renderNotifications();
+        showToast(notification.description, notification.type);
+    }
 }
 
-function clearAllNotifications() {
-    state.appData.notifications.forEach((n) => (n.read = true));
-    saveData();
+async function clearAllNotifications() {
+    state.appData.notifications = state.appData.notifications.map((n) => ({ ...n, read: true }));
     renderNotifications();
+
+    if (!state.supabase || !state.user) return;
+
+    try {
+        await state.supabase
+            .from('notifications')
+            .update({ read: true })
+            .eq('user_id', state.user.id);
+    } catch (error) {
+        console.error('No fue posible marcar las notificaciones como leídas', error);
+    }
 }
 
 function renderNotifications() {
@@ -375,14 +798,28 @@ function renderNotifications() {
     list.querySelectorAll('.notification-item').forEach((item) => {
         item.addEventListener('click', () => {
             const id = item.dataset.id;
-            const target = state.appData.notifications.find((n) => n.id === id);
-            if (target) {
-                target.read = true;
-                saveData();
-                renderNotifications();
-            }
+            markNotificationRead(id);
         });
     });
+}
+
+async function markNotificationRead(notificationId) {
+    const target = state.appData.notifications.find((n) => n.id === notificationId);
+    if (!target) return;
+    target.read = true;
+    renderNotifications();
+
+    if (!state.supabase || !state.user) return;
+
+    try {
+        await state.supabase
+            .from('notifications')
+            .update({ read: true })
+            .eq('id', notificationId)
+            .eq('user_id', state.user.id);
+    } catch (error) {
+        console.error('No fue posible marcar la notificación como leída', error);
+    }
 }
 
 function renderApp() {

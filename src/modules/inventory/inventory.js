@@ -31,9 +31,9 @@ export function render(appState) {
     });
 
     table.querySelectorAll('[data-action="delete"]').forEach((button) => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', async () => {
             if (confirm('¿Eliminar este producto?')) {
-                callbacks.onDeleteProduct?.(button.dataset.id);
+                await callbacks.onDeleteProduct?.(button.dataset.id);
             }
         });
     });

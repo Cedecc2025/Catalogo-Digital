@@ -23,15 +23,15 @@ export function init(options) {
     });
 
     const form = document.getElementById('productForm');
-    form?.addEventListener('submit', (event) => {
+    form?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const product = collectProductFromForm();
         if (!product) return;
 
         if (editingProductId) {
-            callbacks.onUpdateProduct?.(editingProductId, product);
+            await callbacks.onUpdateProduct?.(editingProductId, product);
         } else {
-            callbacks.onCreateProduct?.(product);
+            await callbacks.onCreateProduct?.(product);
         }
 
         closeModal('productModal');
@@ -65,10 +65,10 @@ export function init(options) {
         button.addEventListener('click', () => closeModal(button.dataset.close));
     });
 
-    document.getElementById('sendWhatsAppBtn')?.addEventListener('click', () => {
+    document.getElementById('sendWhatsAppBtn')?.addEventListener('click', async () => {
         const order = buildOrderFromCart();
         if (!order) return;
-        callbacks.onCheckout?.({ ...order, source: 'WhatsApp' });
+        await callbacks.onCheckout?.({ ...order, source: 'WhatsApp' });
         callbacks.onNotify?.('Pedido enviado. Se ha abierto WhatsApp en otra pestaña.', 'success');
         const whatsappUrl = buildWhatsappUrl(order);
         window.open(whatsappUrl, '_blank');
@@ -107,9 +107,9 @@ export function render(appState) {
     });
 
     productsGrid.querySelectorAll('[data-action="delete-product"]').forEach((button) => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', async () => {
             if (confirm('¿Eliminar este producto del catálogo?')) {
-                callbacks.onDeleteProduct?.(button.dataset.id);
+                await callbacks.onDeleteProduct?.(button.dataset.id);
             }
         });
     });

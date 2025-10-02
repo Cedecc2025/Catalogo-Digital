@@ -37,8 +37,8 @@ export function render(appState) {
         .join('');
 
     table.querySelectorAll('[data-action="complete"]').forEach((button) => {
-        button.addEventListener('click', () => {
-            callbacks.onUpdateStatus?.(button.dataset.id, 'Completado');
+        button.addEventListener('click', async () => {
+            await callbacks.onUpdateStatus?.(button.dataset.id, 'Completado');
         });
     });
 }
@@ -96,9 +96,9 @@ function showParsedOrder(order) {
         <button class="btn-primary" id="registerSaleBtn">Registrar venta</button>
     `;
 
-    document.getElementById('registerSaleBtn')?.addEventListener('click', () => {
+    document.getElementById('registerSaleBtn')?.addEventListener('click', async () => {
         if (!parsedOrder) return;
-        callbacks.onRegisterSale?.({ ...parsedOrder, source: 'WhatsApp' });
+        await callbacks.onRegisterSale?.({ ...parsedOrder, source: 'WhatsApp' });
         clearParsedData();
     });
 }

@@ -22,8 +22,8 @@ export function render(appState) {
     document.getElementById('bgColor2').value = appState.appData.settings.colors.bgColor2 || '#764ba2';
 }
 
-function saveSettings() {
-    callbacks.onSave?.({
+async function saveSettings() {
+    await callbacks.onSave?.({
         businessName: document.getElementById('settingsBusinessName').value.trim(),
         logo: document.getElementById('settingsLogoUrl').value.trim(),
         whatsapp: document.getElementById('settingsWhatsApp').value.trim(),
