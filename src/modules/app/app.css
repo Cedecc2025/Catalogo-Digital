@@ -1,0 +1,476 @@
+.admin-lock {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    transition: all 0.3s;
+    font-size: 20px;
+}
+
+.admin-lock:hover {
+    transform: scale(1.1);
+    background: var(--primary);
+    color: white;
+}
+
+.admin-lock.unlocked {
+    background: var(--success);
+    color: white;
+}
+
+.admin-only {
+    display: none !important;
+}
+
+body.admin-mode .admin-only {
+    display: inline-block !important;
+}
+
+body.admin-mode .nav-tabs {
+    display: flex;
+}
+
+body:not(.admin-mode) .nav-tabs {
+    display: none;
+}
+
+.notification-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--danger);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    animation: pulse 2s infinite;
+}
+
+.notification-dropdown {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    width: min(400px, 95vw);
+    max-height: 500px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    display: none;
+    z-index: 2500;
+    overflow: hidden;
+}
+
+.notification-dropdown.show {
+    display: block;
+    animation: slideIn 0.3s;
+}
+
+.notification-dropdown-header {
+    background: var(--primary);
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.notification-dropdown-title {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.clear-notifications-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.3s ease;
+}
+
+.clear-notifications-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.notification-list {
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.notification-item {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.notification-item:hover {
+    background: var(--light);
+}
+
+.notification-item.unread {
+    background: #f0f9ff;
+    border-left: 4px solid var(--primary);
+}
+
+.notification-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.notification-item-title {
+    font-weight: bold;
+    color: var(--dark);
+    font-size: 14px;
+}
+
+.notification-item-time {
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.notification-item-content {
+    color: #4b5563;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.notification-item-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+.notification-action-btn {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.notification-action-btn.primary {
+    background: var(--primary);
+    color: white;
+}
+
+.notification-action-btn.secondary {
+    background: var(--light);
+    color: var(--dark);
+}
+
+.notification-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7280;
+}
+
+.notification-settings {
+    padding: 15px 20px;
+    background: var(--light);
+}
+
+.notification-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.purchase-popup {
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+    display: none;
+    min-width: 320px;
+    z-index: 2000;
+}
+
+.purchase-popup.show {
+    display: block;
+    animation: slideIn 0.4s ease;
+}
+
+.purchase-popup-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #9ca3af;
+}
+
+.purchase-popup-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.purchase-popup-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: var(--gradient-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: white;
+}
+
+.purchase-popup-content h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+.purchase-popup-details {
+    font-size: 14px;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+.chatbot-widget {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 2000;
+}
+
+.chatbot-button {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary);
+    color: white;
+    font-size: 28px;
+    box-shadow: 0 15px 30px rgba(37, 99, 235, 0.35);
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.3s ease;
+}
+
+.chatbot-button:hover {
+    transform: translateY(-4px);
+}
+
+.chatbot-button .notification-dot {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    width: 12px;
+    height: 12px;
+    background: var(--danger);
+    border-radius: 50%;
+}
+
+.chatbot-window {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: min(360px, 85vw);
+    max-height: 520px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+    overflow: hidden;
+    display: none;
+    flex-direction: column;
+}
+
+.chatbot-window.show {
+    display: flex;
+    animation: slideIn 0.3s ease;
+}
+
+.chatbot-header {
+    background: var(--primary);
+    color: white;
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.chatbot-header h3 {
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chatbot-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--success);
+    display: inline-block;
+}
+
+.chatbot-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 22px;
+    cursor: pointer;
+}
+
+.chatbot-messages {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--light);
+}
+
+.chatbot-message {
+    max-width: 85%;
+    padding: 12px 15px;
+    border-radius: 15px;
+    font-size: 14px;
+    line-height: 1.5;
+    display: inline-block;
+    animation: fadeIn 0.3s ease;
+}
+
+.chatbot-message.bot {
+    background: white;
+    align-self: flex-start;
+    border-bottom-left-radius: 5px;
+}
+
+.chatbot-message.user {
+    background: var(--primary);
+    color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 5px;
+}
+
+.chatbot-typing {
+    padding: 0 20px 20px;
+    display: none;
+}
+
+.chatbot-typing.show {
+    display: block;
+}
+
+.typing-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.typing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #cbd5f5;
+    animation: typing 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+.chatbot-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 0 20px 16px;
+}
+
+.chat-option-btn {
+    border: none;
+    background: white;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chat-option-btn:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.chatbot-input {
+    display: flex;
+    padding: 16px 20px;
+    gap: 12px;
+    background: white;
+    border-top: 1px solid var(--border);
+}
+
+.chat-input {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 14px;
+}
+
+.chat-send {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary);
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .admin-lock {
+        bottom: 20px;
+        right: 20px;
+    }
+
+    .chatbot-widget {
+        bottom: 20px;
+        right: 20px;
+    }
+
+    .purchase-popup {
+        left: 20px;
+        bottom: 20px;
+    }
+}

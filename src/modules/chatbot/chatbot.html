@@ -1,0 +1,35 @@
+<h2 class="section-title">Configuración del Chatbot</h2>
+<div class="chatbot-settings">
+    <div class="form-group">
+        <label class="form-label" for="botName">Nombre del asistente</label>
+        <input type="text" class="form-input" id="botName" placeholder="Asistente Virtual">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="botWelcome">Mensaje de bienvenida</label>
+        <textarea class="form-textarea" id="botWelcome" placeholder="¡Hola! ¿En qué puedo ayudarte hoy?"></textarea>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Estado</label>
+        <label class="toggle">
+            <input type="checkbox" id="botEnabled">
+            <span>Chatbot activo</span>
+        </label>
+    </div>
+</div>
+
+<h3 class="section-subtitle">Respuestas rápidas</h3>
+<div class="quick-responses">
+    <div class="form-group">
+        <label class="form-label" for="botHours">Horario de atención</label>
+        <input type="text" class="form-input" id="botHours" placeholder="Lunes a Viernes: 8am - 6pm">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="botDelivery">Tiempo de entrega</label>
+        <input type="text" class="form-input" id="botDelivery" placeholder="24-48 horas">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="botPayment">Métodos de pago</label>
+        <input type="text" class="form-input" id="botPayment" placeholder="Efectivo, SINPE, Transferencia">
+    </div>
+    <button class="btn-primary" id="saveChatbotBtn">Guardar configuración</button>
+</div>

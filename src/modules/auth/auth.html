@@ -1,0 +1,37 @@
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-logo">🏪</div>
+        <h1 class="auth-title">Catálogo Digital PyME</h1>
+        <p class="auth-subtitle">Inicia sesión para gestionar tu negocio</p>
+
+        <div class="auth-tabs">
+            <button class="auth-tab active" data-target="loginForm">Iniciar sesión</button>
+            <button class="auth-tab" data-target="registerForm">Crear cuenta</button>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+            <label class="form-label" for="loginEmail">Correo electrónico</label>
+            <input class="form-input" type="email" id="loginEmail" placeholder="tu@negocio.com" required />
+
+            <label class="form-label" for="loginPassword">Contraseña</label>
+            <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" required />
+
+            <button type="submit" class="btn-primary auth-submit">Entrar</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden">
+            <label class="form-label" for="registerEmail">Correo electrónico</label>
+            <input class="form-input" type="email" id="registerEmail" placeholder="tu@negocio.com" required />
+
+            <label class="form-label" for="registerPassword">Contraseña</label>
+            <input class="form-input" type="password" id="registerPassword" placeholder="Mínimo 6 caracteres" required />
+
+            <label class="form-label" for="registerConfirmPassword">Confirmar contraseña</label>
+            <input class="form-input" type="password" id="registerConfirmPassword" placeholder="Repite la contraseña" required />
+
+            <button type="submit" class="btn-primary auth-submit">Registrarme</button>
+        </form>
+
+        <p class="auth-notice">Protegido con Supabase Auth</p>
+    </div>
+</div>
