@@ -1,13 +1,17 @@
 import { supabase } from '../../scripts/supabaseClient.js';
 import { setUser, setSupabaseClient } from '../../scripts/state.js';
 
-export function initAuth({ container, onAuthenticated, onError }) {
+export function initAuth({ container, onAuthenticated, onError, onBack }) {
     setSupabaseClient(supabase);
     const tabs = Array.from(container.querySelectorAll('.auth-tab'));
     const forms = {
         loginForm: container.querySelector('#loginForm'),
         registerForm: container.querySelector('#registerForm')
     };
+
+    container.querySelector('#backToCatalog')?.addEventListener('click', () => {
+        onBack?.();
+    });
 
     tabs.forEach((tab) => {
         tab.addEventListener('click', (event) => {

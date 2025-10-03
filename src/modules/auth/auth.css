@@ -80,6 +80,20 @@
     width: 100%;
 }
 
+.auth-back {
+    margin-top: 20px;
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.auth-back:hover {
+    color: #1d4ed8;
+}
+
 .auth-notice {
     margin-top: 26px;
     font-size: 13px;

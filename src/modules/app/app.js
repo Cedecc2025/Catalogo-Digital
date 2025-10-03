@@ -194,6 +194,7 @@ function mapBusinessSettings(row) {
         logo: row.logo_url ?? '',
         whatsapp: row.whatsapp ?? '',
         email: row.email ?? '',
+        isPublic: row.is_public ?? state.appData.settings.isPublic,
         colors: {
             primary: row.primary_color ?? state.appData.settings.colors.primary,
             bgColor1: row.gradient_start ?? state.appData.settings.colors.bgColor1,
@@ -622,6 +623,7 @@ function toBusinessSettingsPayload(settings) {
         logo_url: settings.logo || null,
         whatsapp: settings.whatsapp || null,
         email: settings.email || null,
+        is_public: settings.isPublic ?? true,
         primary_color: settings.colors.primary || null,
         gradient_start: settings.colors.bgColor1 || null,
         gradient_end: settings.colors.bgColor2 || null

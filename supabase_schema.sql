@@ -11,6 +11,7 @@ create table public.products (
     price numeric(12,2) not null,
     stock integer not null default 0,
     image_url text,
+    is_public boolean not null default true,
     created_at timestamptz default now()
 );
 
@@ -70,6 +71,7 @@ create table public.business_settings (
     logo_url text,
     whatsapp text,
     email text,
+    is_public boolean not null default true,
     primary_color text default '#2563eb',
     gradient_start text default '#667eea',
     gradient_end text default '#764ba2',
@@ -119,6 +121,8 @@ alter table public.chatbot_settings enable row level security;
 
 create policy "Solo dueño" on public.products
     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Productos públicos" on public.products
+    for select using (is_public);
 create policy "Solo dueño" on public.clients
     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Solo dueño" on public.sales
@@ -134,5 +138,7 @@ create policy "Solo dueño" on public.notifications
     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Solo dueño" on public.business_settings
     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Configuración pública" on public.business_settings
+    for select using (is_public);
 create policy "Solo dueño" on public.chatbot_settings
     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
