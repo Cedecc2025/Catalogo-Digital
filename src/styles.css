@@ -577,16 +577,16 @@ tbody td {
     text-align: right;
 }
 
-.catalog-actions-header {
-    text-align: right;
-}
-
 .catalog-actions-cell {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 0.6rem;
     flex-wrap: wrap;
+}
+
+.catalog-actions-header {
+    text-align: center;
 }
 
 .catalog-action {
