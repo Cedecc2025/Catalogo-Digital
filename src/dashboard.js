@@ -78,6 +78,7 @@ let currentData = cloneData(defaultDashboardState);
 let supabaseClient = null;
 let activePanel = 'overview';
 let isAddProductFormVisible = false;
+let editingProductId = null;
 let isAddSaleFormVisible = false;
 let isClientFormVisible = false;
 let editingClientId = null;
@@ -949,7 +950,7 @@ function renderProductCatalog(products) {
     if (!tableBody) return;
 
     if (!products.length) {
-        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No hay productos en el catálogo</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No hay productos en el catálogo</td></tr>';
         return;
     }
 
@@ -962,6 +963,10 @@ function renderProductCatalog(products) {
             const nameContent = escapeHtml(rawName);
             const categoryContent = escapeHtml(rawCategory);
             const statusContent = escapeHtml(rawStatus);
+            const statusClass = typeof product.statusClass === 'string'
+                ? product.statusClass.replace(/[^a-z0-9_\-\s]/gi, '').trim().replace(/\s+/g, ' ')
+                : '';
+            const productId = String(product.id ?? '');
             const imageMarkup = product.image
                 ? `<img src="${escapeHtml(product.image)}" alt="Imagen de ${escapeHtml(rawName)}" class="catalog-product-image" loading="lazy" />`
                 : '<span class="catalog-product-placeholder" role="img" aria-label="Sin imagen disponible">🛒</span>';
@@ -978,7 +983,15 @@ function renderProductCatalog(products) {
                     <td>${escapeHtml(portalName)}</td>
                     <td>${formatCurrency(product.price ?? 0)}</td>
                     <td>${typeof product.stock === 'number' ? `${product.stock} unidades` : '—'}</td>
-                    <td><span class="badge ${product.statusClass ?? ''}">${statusContent}</span></td>
+                    <td><span class="badge ${statusClass}">${statusContent}</span></td>
+                    <td class="catalog-actions-cell">
+                        <button type="button" class="catalog-action edit" data-catalog-action="edit" data-product-id="${escapeHtml(
+                            productId
+                        )}">Editar</button>
+                        <button type="button" class="catalog-action delete" data-catalog-action="delete" data-product-id="${escapeHtml(
+                            productId
+                        )}">Eliminar</button>
+                    </td>
                 </tr>`;
         })
         .join('');
@@ -1907,28 +1920,229 @@ function handleAddSaleSubmit(event) {
     }, 900);
 }
 
+function updateAddProductButtonState() {
+    const button = getElement(DASHBOARD_SELECTORS.addProductButton);
+    if (!button) return;
+
+    let label = 'Agregar producto';
+    if (isAddProductFormVisible) {
+        label = editingProductId ? 'Cancelar edición' : 'Cerrar formulario';
+    }
+
+    button.textContent = label;
+    button.setAttribute('aria-expanded', String(isAddProductFormVisible));
+}
+
+function setProductFormMode(mode) {
+    const form = getElement(DASHBOARD_SELECTORS.addProductForm);
+    if (!form) return;
+
+    form.dataset.mode = mode;
+
+    const submitButton = form.querySelector('.catalog-form-submit');
+    const cancelButton = getElement(DASHBOARD_SELECTORS.addProductCancel);
+
+    if (submitButton) {
+        submitButton.textContent = mode === 'edit' ? 'Actualizar producto' : 'Guardar producto';
+    }
+
+    if (cancelButton) {
+        cancelButton.textContent = mode === 'edit' ? 'Cancelar edición' : 'Cancelar';
+    }
+}
+
+function resetProductForm() {
+    const form = getElement(DASHBOARD_SELECTORS.addProductForm);
+    if (!form) return;
+
+    form.reset();
+    populateProductPortalSelect(currentData.portals || []);
+}
+
 function toggleAddProductForm(show) {
     const form = getElement(DASHBOARD_SELECTORS.addProductForm);
-    const button = getElement(DASHBOARD_SELECTORS.addProductButton);
 
     isAddProductFormVisible = Boolean(show);
+
+    if (!isAddProductFormVisible) {
+        editingProductId = null;
+    }
 
     if (form) {
         form.classList.toggle('hidden', !isAddProductFormVisible);
         if (isAddProductFormVisible) {
             populateProductPortalSelect(currentData.portals || []);
+            if (!editingProductId) {
+                setProductFormMode('create');
+            }
         }
     }
 
-    if (button) {
-        button.setAttribute('aria-expanded', String(isAddProductFormVisible));
-        button.textContent = isAddProductFormVisible ? 'Cerrar formulario' : 'Agregar producto';
-    }
+    updateAddProductButtonState();
 
     if (!isAddProductFormVisible) {
-        form?.reset();
-        populateProductPortalSelect(currentData.portals || []);
+        setProductFormMode('create');
+        resetProductForm();
         setFeedback(DASHBOARD_SELECTORS.addProductFeedback);
+    }
+}
+
+function populateProductForm(product) {
+    const form = getElement(DASHBOARD_SELECTORS.addProductForm);
+    if (!form) return;
+
+    const elements = form.elements;
+
+    if (elements.name) {
+        elements.name.value = String(product.name ?? '');
+    }
+
+    if (elements.category) {
+        elements.category.value = String(product.category ?? '');
+    }
+
+    if (elements.price) {
+        const priceValue = Number(product.price);
+        elements.price.value = Number.isFinite(priceValue) ? String(priceValue) : '';
+    }
+
+    if (elements.stock) {
+        const stockValue = Number(product.stock);
+        elements.stock.value = Number.isFinite(stockValue) ? String(stockValue) : '';
+    }
+
+    if (elements.status) {
+        const statusValue = String(product.status ?? 'Disponible');
+        const hasStatusOption = Array.from(elements.status.options || []).some(
+            (option) => option.value === statusValue
+        );
+
+        if (!hasStatusOption) {
+            const option = document.createElement('option');
+            option.value = statusValue;
+            option.textContent = statusValue;
+            elements.status.appendChild(option);
+        }
+
+        elements.status.value = statusValue;
+    }
+
+    if (elements.image) {
+        elements.image.value = String(product.image ?? '');
+    }
+
+    const portalSelect = elements.portalId;
+    if (portalSelect) {
+        const portalValue = product.portalId ?? (Array.isArray(product.portalIds) ? product.portalIds[0] : '');
+        const portalIdString = portalValue !== undefined && portalValue !== null ? String(portalValue) : '';
+
+        if (portalIdString) {
+            const hasOption = Array.from(portalSelect.options).some((option) => option.value === portalIdString);
+            if (!hasOption) {
+                const option = document.createElement('option');
+                option.value = portalIdString;
+                option.textContent = getPortalLabel(portalValue);
+                portalSelect.appendChild(option);
+            }
+            portalSelect.value = portalIdString;
+        } else if (portalSelect.options.length) {
+            portalSelect.selectedIndex = 0;
+        }
+    }
+}
+
+function startEditingProduct(productId) {
+    const products = Array.isArray(currentData.products) ? currentData.products : [];
+    const product = products.find((item) => String(item.id) === String(productId));
+
+    if (!product) {
+        setFeedback(
+            DASHBOARD_SELECTORS.addProductFeedback,
+            'No se pudo cargar el producto seleccionado para editar.',
+            'error'
+        );
+        return;
+    }
+
+    editingProductId = product.id;
+    toggleAddProductForm(true);
+    setProductFormMode('edit');
+    resetProductForm();
+    populateProductForm(product);
+    setFeedback(DASHBOARD_SELECTORS.addProductFeedback);
+    updateAddProductButtonState();
+
+    const form = getElement(DASHBOARD_SELECTORS.addProductForm);
+    const nameField = form?.querySelector('[name="name"]');
+    if (nameField) {
+        nameField.focus();
+        if (typeof nameField.select === 'function') {
+            nameField.select();
+        }
+    }
+}
+
+function handleDeleteProduct(productId) {
+    const products = Array.isArray(currentData.products) ? currentData.products : [];
+    const product = products.find((item) => String(item.id) === String(productId));
+
+    if (!product) {
+        setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'El producto ya no está disponible.', 'error');
+        return;
+    }
+
+    const productName = product.name ? `"${product.name}"` : 'este producto';
+    const shouldDelete = window.confirm(`¿Seguro que deseas eliminar ${productName}?`);
+    if (!shouldDelete) {
+        return;
+    }
+
+    currentData.products = products.filter((item) => String(item.id) !== String(productId));
+    currentData.portals = (currentData.portals || []).map((portal) => {
+        const productIds = Array.isArray(portal.productIds) ? portal.productIds : [];
+        const filteredIds = productIds.filter((id) => String(id) !== String(productId));
+        return {
+            ...portal,
+            productIds: filteredIds
+        };
+    });
+
+    if (editingProductId && String(editingProductId) === String(productId)) {
+        toggleAddProductForm(false);
+    }
+
+    renderDashboard(currentData);
+
+    if (isAddProductFormVisible) {
+        setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Producto eliminado correctamente.', 'success');
+        setTimeout(() => {
+            setFeedback(DASHBOARD_SELECTORS.addProductFeedback);
+        }, 2000);
+    }
+}
+
+function handleCatalogTableClick(event) {
+    const target = event.target;
+    if (!target || typeof target.closest !== 'function') {
+        return;
+    }
+
+    const actionButton = target.closest('[data-catalog-action]');
+    if (!actionButton) {
+        return;
+    }
+
+    const productId = actionButton.getAttribute('data-product-id') ?? '';
+    if (!productId) {
+        return;
+    }
+
+    const action = actionButton.getAttribute('data-catalog-action');
+
+    if (action === 'edit') {
+        startEditingProduct(productId);
+    } else if (action === 'delete') {
+        handleDeleteProduct(productId);
     }
 }
 
@@ -1976,14 +2190,88 @@ function handleAddProductSubmit(event) {
         return;
     }
 
+    const normalizedPrice = Math.max(0, price);
+    const normalizedStock = Math.max(0, Math.trunc(stock));
+    const statusClass = getStatusClass(status);
+
+    if (editingProductId) {
+        const products = Array.isArray(currentData.products) ? currentData.products : [];
+        const productIndex = products.findIndex((product) => String(product.id) === String(editingProductId));
+
+        if (productIndex === -1) {
+            setFeedback(
+                DASHBOARD_SELECTORS.addProductFeedback,
+                'El producto que intentas editar ya no existe.',
+                'error'
+            );
+            editingProductId = null;
+            setProductFormMode('create');
+            renderDashboard(currentData);
+            toggleAddProductForm(false);
+            return;
+        }
+
+        const previousProduct = products[productIndex];
+        const updatedProduct = {
+            ...previousProduct,
+            name,
+            category,
+            price: normalizedPrice,
+            stock: normalizedStock,
+            status,
+            statusClass,
+            image,
+            portalId
+        };
+
+        currentData.products = [
+            ...products.slice(0, productIndex),
+            updatedProduct,
+            ...products.slice(productIndex + 1)
+        ];
+
+        currentData.portals = (currentData.portals || []).map((portal) => {
+            const productIds = Array.isArray(portal.productIds) ? portal.productIds : [];
+            const filteredIds = productIds.filter((id) => String(id) !== String(updatedProduct.id));
+
+            if (String(portal.id) === String(portalId)) {
+                return {
+                    ...portal,
+                    productIds: [updatedProduct.id, ...filteredIds]
+                };
+            }
+
+            return {
+                ...portal,
+                productIds: filteredIds
+            };
+        });
+
+        const updatedPortal = findPortalById(portalId);
+        if (updatedPortal?.slug) {
+            selectedPortalSlug = updatedPortal.slug;
+        }
+
+        renderDashboard(currentData);
+
+        setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Producto actualizado correctamente.', 'success');
+        editingProductId = null;
+        setProductFormMode('create');
+        updateAddProductButtonState();
+        setTimeout(() => {
+            toggleAddProductForm(false);
+        }, 800);
+        return;
+    }
+
     const newProduct = {
         id: Date.now(),
         name,
         category,
-        price: Math.max(0, price),
-        stock: Math.max(0, Math.trunc(stock)),
+        price: normalizedPrice,
+        stock: normalizedStock,
         status,
-        statusClass: getStatusClass(status),
+        statusClass,
         image,
         portalId
     };
@@ -1997,7 +2285,13 @@ function handleAddProductSubmit(event) {
                 productIds: [newProduct.id, ...productIds.filter((id) => String(id) !== String(newProduct.id))]
             };
         }
-        return portal;
+
+        return {
+            ...portal,
+            productIds: Array.isArray(portal.productIds)
+                ? portal.productIds.filter((id) => String(id) !== String(newProduct.id))
+                : portal.productIds
+        };
     });
 
     const productPortal = findPortalById(portalId);
@@ -2102,6 +2396,7 @@ export function initDashboard({ supabase }) {
     const addProductButton = getElement(DASHBOARD_SELECTORS.addProductButton);
     const addProductForm = getElement(DASHBOARD_SELECTORS.addProductForm);
     const addProductCancel = getElement(DASHBOARD_SELECTORS.addProductCancel);
+    const catalogTableBody = getElement(DASHBOARD_SELECTORS.catalogTable);
 
     addProductButton?.addEventListener('click', () => {
         toggleAddProductForm(!isAddProductFormVisible);
@@ -2112,6 +2407,7 @@ export function initDashboard({ supabase }) {
     });
 
     addProductForm?.addEventListener('submit', handleAddProductSubmit);
+    catalogTableBody?.addEventListener('click', handleCatalogTableClick);
 
     const addSaleButton = getElement(DASHBOARD_SELECTORS.addSaleButton);
     const addSaleForm = getElement(DASHBOARD_SELECTORS.addSaleForm);
