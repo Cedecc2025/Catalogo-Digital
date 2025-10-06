@@ -79,7 +79,6 @@ async function loadPublicProducts() {
         let query = callbacks.supabase
             .from('products')
             .select('*')
-            .eq('is_public', true)
             .order('created_at', { ascending: false });
 
         if (publicContext.userId) {
@@ -87,6 +86,8 @@ async function loadPublicProducts() {
         } else if (publicContext.slug) {
             state.appData.products = [];
             return;
+        } else {
+            query = query.eq('is_public', true);
         }
 
         const { data, error } = await query;
