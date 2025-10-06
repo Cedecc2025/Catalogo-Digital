@@ -1,3 +1,14 @@
+function getDefaultPortalBaseUrl() {
+    if (typeof window === 'undefined') {
+        return 'client-portal.html?portal={{slug}}';
+    }
+
+    const { origin, pathname } = window.location;
+    const sanitizedPath = pathname.replace(/index\.html?$/i, '');
+    const basePath = sanitizedPath.endsWith('/') ? sanitizedPath : `${sanitizedPath}/`;
+    return `${origin}${basePath}client-portal.html?portal={{slug}}`;
+}
+
 export function getInitialDashboardData() {
     return {
         sales: [
@@ -312,7 +323,7 @@ export function getInitialDashboardData() {
             tagline: 'Administra tu negocio en un solo lugar',
             themeColor: '#6366f1',
             logoUrl: '',
-            portalBaseUrl: 'https://catalogodigital.cr/client-portal.html?portal={{slug}}'
+            portalBaseUrl: getDefaultPortalBaseUrl()
         },
         portals: [
             {
