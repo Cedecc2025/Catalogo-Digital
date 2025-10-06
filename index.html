@@ -3,11 +3,49 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Catálogo Digital PyME</title>
-    <link rel="stylesheet" href="./src/styles/global.css" />
+    <title>Catálogo Digital - Acceso</title>
+    <link rel="stylesheet" href="src/styles.css" />
 </head>
 <body>
-    <div id="appRoot"></div>
-    <script type="module" src="./src/scripts/main.js"></script>
+    <main class="page">
+        <section class="auth-card">
+            <header class="auth-header">
+                <h1 class="auth-title">Catálogo Digital</h1>
+                <p class="auth-subtitle">Inicia sesión o crea una cuenta para continuar</p>
+            </header>
+
+            <nav class="auth-tabs" aria-label="Selecciona un formulario">
+                <button class="auth-tab active" type="button" data-target="loginForm">Iniciar sesión</button>
+                <button class="auth-tab" type="button" data-target="registerForm">Crear cuenta</button>
+            </nav>
+
+            <form id="loginForm" class="auth-form" autocomplete="on">
+                <label class="form-label" for="loginEmail">Correo electrónico</label>
+                <input class="form-input" type="email" id="loginEmail" name="email" placeholder="tu@negocio.com" required />
+
+                <label class="form-label" for="loginPassword">Contraseña</label>
+                <input class="form-input" type="password" id="loginPassword" name="password" placeholder="••••••••" minlength="6" required />
+
+                <button class="form-submit" type="submit">Entrar</button>
+                <p class="form-feedback" role="status" data-feedback-for="login"></p>
+            </form>
+
+            <form id="registerForm" class="auth-form hidden" autocomplete="on">
+                <label class="form-label" for="registerEmail">Correo electrónico</label>
+                <input class="form-input" type="email" id="registerEmail" name="email" placeholder="tu@negocio.com" required />
+
+                <label class="form-label" for="registerPassword">Contraseña</label>
+                <input class="form-input" type="password" id="registerPassword" name="password" placeholder="Mínimo 6 caracteres" minlength="6" required />
+
+                <label class="form-label" for="registerPasswordConfirm">Confirmar contraseña</label>
+                <input class="form-input" type="password" id="registerPasswordConfirm" name="passwordConfirm" placeholder="Repite la contraseña" minlength="6" required />
+
+                <button class="form-submit" type="submit">Crear cuenta</button>
+                <p class="form-feedback" role="status" data-feedback-for="register"></p>
+            </form>
+        </section>
+    </main>
+
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>
