@@ -63,6 +63,7 @@
                 <button class="dashboard-tab" type="button" data-dashboard-tab="sales">Ventas</button>
                 <button class="dashboard-tab" type="button" data-dashboard-tab="clients">Clientes</button>
                 <button class="dashboard-tab" type="button" data-dashboard-tab="inventory">Inventario</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="client-portals">Portales cliente</button>
                 <button class="dashboard-tab" type="button" data-dashboard-tab="settings">Configuración</button>
             </nav>
 
@@ -136,6 +137,12 @@
                             <input type="text" name="category" placeholder="Ej. Dulces" required />
                         </label>
                         <label class="catalog-form-field">
+                            <span>Empresa / portal</span>
+                            <select name="portalId" id="productPortalSelect" required>
+                                <option value="" disabled selected>Selecciona una empresa</option>
+                            </select>
+                        </label>
+                        <label class="catalog-form-field">
                             <span>URL de imagen</span>
                             <input type="url" name="image" placeholder="https://..." inputmode="url" />
                         </label>
@@ -171,13 +178,14 @@
                                 <th>Imagen</th>
                                 <th>Producto</th>
                                 <th>Categoría</th>
+                                <th>Empresa</th>
                                 <th>Precio</th>
                                 <th>Inventario</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
                         <tbody id="catalogProductsTable">
-                            <tr><td colspan="6" style="text-align: center;">No hay productos en el catálogo</td></tr>
+                            <tr><td colspan="7" style="text-align: center;">No hay productos en el catálogo</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -417,6 +425,84 @@
                             </tbody>
                         </table>
                     </div>
+                </section>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="client-portals" aria-label="Portales públicos del catálogo">
+                <header class="portal-header">
+                    <div>
+                        <h3 class="section-subtitle">Portales para clientes</h3>
+                        <p class="portal-hint">Comparte enlaces personalizados para que tus clientes consulten el catálogo y soliciten pedidos.</p>
+                    </div>
+                    <button class="portal-toggle-button" type="button" id="togglePortalForm">Crear portal</button>
+                </header>
+
+                <section class="portal-share" aria-label="Enlace público seleccionado">
+                    <div class="portal-share-summary">
+                        <h4 class="portal-share-title" data-portal-summary="name">Selecciona un portal</h4>
+                        <p class="portal-share-stats" data-portal-summary="products">0 productos publicados</p>
+                        <p class="portal-share-contact" data-portal-summary="contact">Actualiza tu información de contacto para compartirla aquí.</p>
+                    </div>
+                    <div class="portal-share-actions">
+                        <label class="sr-only" for="portalShareInput">Enlace público del portal</label>
+                        <input type="url" id="portalShareInput" class="portal-share-input" readonly placeholder="Selecciona un portal para generar el enlace" />
+                        <button type="button" class="portal-share-button" id="copyPortalLink">Copiar enlace</button>
+                    </div>
+                </section>
+                <p class="portal-share-feedback" role="status" data-feedback="portal-share"></p>
+
+                <form id="clientPortalForm" class="portal-form hidden" autocomplete="off">
+                    <div class="portal-form-grid">
+                        <label class="portal-form-field">
+                            <span>Nombre comercial</span>
+                            <input type="text" name="name" placeholder="Ej. Distribuidora El Roble" required />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Slug (enlace)</span>
+                            <input type="text" name="slug" placeholder="ej. distribuidora-el-roble" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Correo de contacto</span>
+                            <input type="email" name="contactEmail" placeholder="ventas@empresa.com" required />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Teléfono</span>
+                            <input type="tel" name="contactPhone" placeholder="+506 0000-0000" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Color principal</span>
+                            <input type="color" name="accentColor" value="#4f46e5" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Título destacado</span>
+                            <input type="text" name="heroTitle" placeholder="Mensaje principal para tus clientes" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Subtítulo</span>
+                            <input type="text" name="heroSubtitle" placeholder="Descripción breve de tu catálogo" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Descripción breve</span>
+                            <textarea name="description" rows="2" placeholder="Resumen del catálogo que verán los clientes"></textarea>
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Imagen de portada (URL)</span>
+                            <input type="url" name="bannerImage" placeholder="https://..." inputmode="url" />
+                        </label>
+                        <label class="portal-form-field wide">
+                            <span>Términos o notas (uno por línea)</span>
+                            <textarea name="terms" rows="3" placeholder="Ej. Pedidos sujetos a confirmación&#10;Entrega gratuita sobre ₡100&nbsp;000"></textarea>
+                        </label>
+                    </div>
+                    <div class="portal-form-actions">
+                        <button type="submit" class="portal-form-submit">Guardar portal</button>
+                        <button type="button" class="portal-form-cancel" id="cancelPortalForm">Cancelar</button>
+                    </div>
+                    <p class="portal-form-feedback" role="status" data-feedback="portal-form"></p>
+                </form>
+
+                <section class="portal-grid" id="clientPortalList" aria-live="polite">
+                    <p class="portal-empty">No hay portales registrados.</p>
                 </section>
             </section>
 

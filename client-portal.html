@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Catálogo público</title>
+    <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body class="client-portal-body">
+    <main class="client-portal-page" id="clientPortalRoot">
+        <section class="client-portal-error hidden" data-portal-error>
+            <div class="client-portal-error-card">
+                <h1>Portal no disponible</h1>
+                <p>No pudimos encontrar la empresa solicitada o el enlace ha caducado. Revisa el vínculo recibido o contacta a tu asesor comercial.</p>
+                <a class="client-portal-error-link" href="index.html">Volver al sitio principal</a>
+            </div>
+        </section>
+
+        <header class="client-portal-hero" data-portal-section>
+            <div class="client-portal-hero-content">
+                <span class="client-portal-badge" data-portal-pill>Catálogo Digital</span>
+                <h1 class="client-portal-title" data-portal-hero-title>Explora nuestro catálogo</h1>
+                <p class="client-portal-subtitle" data-portal-hero-subtitle>Selecciona los productos que deseas y envíanos tu solicitud de compra.</p>
+                <div class="client-portal-contact">
+                    <a class="client-portal-contact-link" href="mailto:ventas@catalogodigital.cr" data-portal-contact-email>ventas@catalogodigital.cr</a>
+                    <span class="client-portal-contact-phone" data-portal-contact-phone>+506 4000-2020</span>
+                </div>
+            </div>
+            <figure class="client-portal-hero-media" data-portal-hero-media>
+                <img src="https://images.unsplash.com/photo-1456406644174-8ddd4cd52a06?auto=format&fit=crop&w=1200&q=80" alt="Colección de productos destacados" data-portal-hero-image />
+            </figure>
+        </header>
+
+        <section class="client-portal-products" data-portal-section>
+            <header class="client-portal-products-header">
+                <div>
+                    <h2 class="client-portal-products-title">Catálogo de productos</h2>
+                    <p class="client-portal-products-hint" data-portal-description>Conoce nuestra selección disponible para tu empresa.</p>
+                </div>
+                <span class="client-portal-product-count" data-portal-product-count>0 productos</span>
+            </header>
+            <div class="client-portal-product-grid" id="portalProductGrid" aria-live="polite">
+                <p class="client-portal-empty">Cargando productos…</p>
+            </div>
+        </section>
+
+        <section class="client-portal-actions" data-portal-section>
+            <div class="client-portal-request">
+                <h2 class="client-portal-request-title">Solicita tu pedido</h2>
+                <p class="client-portal-request-hint">Elige los productos del catálogo y completa tus datos para coordinar la compra con nuestro equipo.</p>
+                <form id="clientRequestForm" class="client-request-form" autocomplete="on">
+                    <div class="client-request-grid">
+                        <label class="client-request-field">
+                            <span>Nombre completo</span>
+                            <input type="text" name="name" placeholder="Tu nombre" required />
+                        </label>
+                        <label class="client-request-field">
+                            <span>Empresa</span>
+                            <input type="text" name="company" placeholder="Nombre de la empresa" />
+                        </label>
+                        <label class="client-request-field">
+                            <span>Correo electrónico</span>
+                            <input type="email" name="email" placeholder="tu@correo.com" required />
+                        </label>
+                        <label class="client-request-field">
+                            <span>Teléfono</span>
+                            <input type="tel" name="phone" placeholder="+506 0000-0000" />
+                        </label>
+                    </div>
+                    <label class="client-request-field wide">
+                        <span>Comentarios adicionales</span>
+                        <textarea name="notes" rows="3" placeholder="Indica detalles de tu solicitud, cantidades especiales o preferencias de entrega"></textarea>
+                    </label>
+                    <button type="submit" class="client-request-submit">Enviar solicitud</button>
+                    <p class="client-request-feedback" role="status" data-feedback="client-request"></p>
+                </form>
+            </div>
+            <aside class="client-portal-summary" aria-live="polite">
+                <h3 class="client-portal-summary-title">Resumen de solicitud</h3>
+                <ul class="client-summary-list" id="clientRequestItems">
+                    <li class="client-summary-empty" data-portal-summary-empty>No has agregado productos todavía.</li>
+                </ul>
+                <div class="client-summary-footer">
+                    <span>Total estimado</span>
+                    <strong class="client-summary-total" data-portal-total>₡0</strong>
+                </div>
+                <p class="client-summary-hint">El total es referencial. Nuestro equipo confirmará precios y disponibilidad antes de cerrar tu pedido.</p>
+            </aside>
+        </section>
+
+        <section class="client-portal-terms" data-portal-section>
+            <h3 class="client-portal-terms-title">Condiciones y notas importantes</h3>
+            <ul class="client-portal-terms-list" id="clientPortalTerms">
+                <li>No hay condiciones registradas para este portal.</li>
+            </ul>
+        </section>
+    </main>
+
+    <script type="module" src="src/clientCatalog.js"></script>
+</body>
+</html>

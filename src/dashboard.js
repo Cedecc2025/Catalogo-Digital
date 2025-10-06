@@ -1,3 +1,5 @@
+import { getInitialDashboardData } from './sampleData.js';
+
 const DASHBOARD_SELECTORS = {
     section: '[data-section="dashboard"]',
     authSection: '[data-section="auth"]',
@@ -52,274 +54,21 @@ const DASHBOARD_SELECTORS = {
     settingsPreviewContact: '[data-settings-preview="contact"]',
     settingsPreviewLogo: '[data-settings-preview="logo"]',
     dashboardTitle: '.dashboard-title',
-    dashboardSubtitle: '.dashboard-subtitle'
+    dashboardSubtitle: '.dashboard-subtitle',
+    portalShareInput: '#portalShareInput',
+    portalCopyButton: '#copyPortalLink',
+    portalList: '#clientPortalList',
+    portalForm: '#clientPortalForm',
+    portalFormToggle: '#togglePortalForm',
+    portalFormCancel: '#cancelPortalForm',
+    portalFormFeedback: '[data-feedback="portal-form"]',
+    portalShareFeedback: '[data-feedback="portal-share"]',
+    portalSummaryName: '[data-portal-summary="name"]',
+    portalSummaryProducts: '[data-portal-summary="products"]',
+    portalSummaryContact: '[data-portal-summary="contact"]',
+    productPortalSelect: '#productPortalSelect'
 };
-
-const sampleDashboardData = {
-    sales: [
-        {
-            id: 101,
-            date: '2024-08-18T14:05:00Z',
-            total: 102000,
-            status: 'Completado',
-            statusClass: 'success',
-            paymentMethod: 'Transferencia',
-            client: { name: 'Distribuidora El Roble' },
-            items: [
-                {
-                    productId: 11,
-                    productName: 'Paquete Gourmet Café',
-                    quantity: 12,
-                    unitPrice: 8500
-                }
-            ],
-            notes: 'Entrega programada para mañana a primera hora.'
-        },
-        {
-            id: 102,
-            date: '2024-08-18T10:32:00Z',
-            total: 47600,
-            status: 'Pendiente',
-            statusClass: 'pending',
-            paymentMethod: 'Tarjeta',
-            client: { name: 'Tienda La Esquina' },
-            items: [
-                {
-                    productId: 13,
-                    productName: 'Kit de Salsas Premium',
-                    quantity: 4,
-                    unitPrice: 11900
-                }
-            ],
-            notes: 'Esperando confirmación de pago.'
-        },
-        {
-            id: 103,
-            date: '2024-08-17T17:41:00Z',
-            total: 117600,
-            status: 'Completado',
-            statusClass: 'success',
-            paymentMethod: 'Transferencia',
-            client: { name: 'Mercado Central' },
-            items: [
-                {
-                    productId: 14,
-                    productName: 'Cesta de Snacks Saludables',
-                    quantity: 12,
-                    unitPrice: 9800
-                }
-            ]
-        },
-        {
-            id: 104,
-            date: '2024-08-16T12:15:00Z',
-            total: 56700,
-            status: 'Cancelado',
-            statusClass: 'canceled',
-            paymentMethod: 'Efectivo',
-            client: { name: 'Mini Súper Lomas' },
-            items: [
-                {
-                    productId: 17,
-                    productName: 'Licores Artesanales',
-                    quantity: 3,
-                    unitPrice: 18900
-                }
-            ],
-            notes: 'Pedido cancelado por el cliente.'
-        },
-        {
-            id: 105,
-            date: '2024-08-15T09:22:00Z',
-            total: 94000,
-            status: 'Completado',
-            statusClass: 'success',
-            paymentMethod: 'Sinpe',
-            client: { name: 'Boutique Azul' },
-            items: [
-                {
-                    productId: 16,
-                    productName: 'Vinos de la Casa',
-                    quantity: 4,
-                    unitPrice: 23500
-                }
-            ]
-        }
-    ],
-    clients: [
-        {
-            id: 1,
-            name: 'Distribuidora El Roble',
-            email: 'compras@elroble.cr',
-            phone: '+506 2250-1122',
-            company: 'Distribuidora El Roble',
-            status: 'Activo',
-            statusClass: 'success',
-            notes: 'Cliente mayorista con entregas semanales.'
-        },
-        {
-            id: 2,
-            name: 'Tienda La Esquina',
-            email: 'contacto@laesquina.cr',
-            phone: '+506 2288-7744',
-            company: 'Tienda La Esquina',
-            status: 'Activo',
-            statusClass: 'success',
-            notes: 'Prefiere entregas lunes y jueves.'
-        },
-        {
-            id: 3,
-            name: 'Mercado Central',
-            email: 'compras@mercadocentral.cr',
-            phone: '+506 2290-5599',
-            company: 'Mercado Central',
-            status: 'Prospecto',
-            statusClass: 'info',
-            notes: 'Pendiente de enviar catálogo actualizado.'
-        },
-        {
-            id: 4,
-            name: 'Mini Súper Lomas',
-            email: 'ventas@minilomas.cr',
-            phone: '+506 2244-7810',
-            company: 'Mini Súper Lomas',
-            status: 'Inactivo',
-            statusClass: 'neutral',
-            notes: 'Sin pedidos desde junio, contactar para seguimiento.'
-        },
-        {
-            id: 5,
-            name: 'Boutique Azul',
-            email: 'compras@boutiqueazul.cr',
-            phone: '+506 2277-3335',
-            company: 'Boutique Azul',
-            status: 'Activo',
-            statusClass: 'success',
-            notes: 'Solicitó surtido especial para temporada navideña.'
-        },
-        {
-            id: 6,
-            name: 'Tecnologías Rivera',
-            email: 'administracion@tecrivera.cr',
-            phone: '+506 4001-9050',
-            company: 'Tecnologías Rivera',
-            status: 'Prospecto',
-            statusClass: 'info',
-            notes: 'Interesados en paquetes corporativos.'
-        }
-    ],
-    products: [
-        {
-            id: 11,
-            name: 'Paquete Gourmet Café',
-            category: 'Bebidas',
-            price: 8500,
-            stock: 24,
-            status: 'Disponible',
-            statusClass: 'success',
-            image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=200&q=80'
-        },
-        {
-            id: 12,
-            name: 'Caja de Tés Artesanales',
-            category: 'Bebidas',
-            price: 7200,
-            stock: 15,
-            status: 'Disponible',
-            statusClass: 'success',
-            image: 'https://images.unsplash.com/photo-1485808191679-5f86510681a2?auto=format&fit=crop&w=200&q=80'
-        },
-        {
-            id: 13,
-            name: 'Kit de Salsas Premium',
-            category: 'Gourmet',
-            price: 11900,
-            stock: 8,
-            status: 'Bajo stock',
-            statusClass: 'warning',
-            image: 'https://images.unsplash.com/photo-1516684732162-798a0062be99?auto=format&fit=crop&w=200&q=80'
-        },
-        {
-            id: 14,
-            name: 'Cesta de Snacks Saludables',
-            category: 'Snacks',
-            price: 9800,
-            stock: 30,
-            status: 'Disponible',
-            statusClass: 'success',
-            image: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=200&q=80'
-        },
-        {
-            id: 15,
-            name: 'Selección de Quesos Locales',
-            category: 'Lácteos',
-            price: 15900,
-            stock: 5,
-            status: 'Requiere reposición',
-            statusClass: 'alert'
-        },
-        {
-            id: 16,
-            name: 'Vinos de la Casa',
-            category: 'Bebidas',
-            price: 23500,
-            stock: 12,
-            status: 'Disponible',
-            statusClass: 'success',
-            image: 'https://images.unsplash.com/photo-1510626176961-4b37d0d4ec9c?auto=format&fit=crop&w=200&q=80'
-        },
-        {
-            id: 17,
-            name: 'Licores Artesanales',
-            category: 'Bebidas',
-            price: 18900,
-            stock: 0,
-            status: 'Agotado',
-            statusClass: 'danger'
-        }
-    ],
-    inventoryAdjustments: [
-        {
-            id: 301,
-            productId: 11,
-            productName: 'Paquete Gourmet Café',
-            type: 'Entrada',
-            quantity: 24,
-            direction: 1,
-            reason: 'Reposición semanal de proveedor',
-            date: '2024-08-17T09:10:00Z'
-        },
-        {
-            id: 302,
-            productId: 15,
-            productName: 'Selección de Quesos Locales',
-            type: 'Salida',
-            quantity: 3,
-            direction: -1,
-            reason: 'Pedido urgente para Boutique Azul',
-            date: '2024-08-16T17:45:00Z'
-        },
-        {
-            id: 303,
-            productId: 17,
-            productName: 'Licores Artesanales',
-            type: 'Ajuste manual',
-            quantity: 1,
-            direction: -1,
-            reason: 'Producto dañado durante transporte',
-            date: '2024-08-15T11:30:00Z'
-        }
-    ],
-    settings: {
-        companyName: 'Catálogo Digital CR',
-        companyEmail: 'ventas@catalogodigital.cr',
-        companyPhone: '+506 4000-2020',
-        companyAddress: 'San José, Costa Rica',
-        tagline: 'Administra tu negocio en un solo lugar',
-        themeColor: '#6366f1',
-        logoUrl: ''
-    }
-};
+const sampleDashboardData = getInitialDashboardData();
 
 function cloneData(data) {
     return JSON.parse(JSON.stringify(data));
@@ -333,6 +82,8 @@ let isAddSaleFormVisible = false;
 let isClientFormVisible = false;
 let editingClientId = null;
 let isInventoryFormVisible = false;
+let isPortalFormVisible = false;
+let selectedPortalSlug = sampleDashboardData.portals?.[0]?.slug ?? null;
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -360,6 +111,348 @@ function setFeedback(selector, message = '', type = '') {
 
     element.textContent = message;
     element.dataset.state = type;
+}
+
+function findPortalById(portalId) {
+    return (currentData.portals || []).find((portal) => String(portal.id) === String(portalId));
+}
+
+function findPortalBySlug(slug) {
+    return (currentData.portals || []).find((portal) => portal.slug === slug);
+}
+
+function getPortalLabel(portalId) {
+    const portal = findPortalById(portalId);
+    return portal?.name ?? 'Catálogo';
+}
+
+function getPortalProducts(portal) {
+    if (!portal) return [];
+    const ids = Array.isArray(portal.productIds) ? portal.productIds.map(String) : [];
+    return (currentData.products || []).filter((product) => {
+        if (ids.length) {
+            return ids.includes(String(product.id));
+        }
+        return portal.id ? String(product.portalId) === String(portal.id) : true;
+    });
+}
+
+function buildPortalLink(slug) {
+    if (!slug) return '';
+    const { origin, pathname } = window.location;
+    const sanitizedPath = pathname.replace(/index\.html?$/i, '');
+    const basePath = sanitizedPath.endsWith('/') ? sanitizedPath : `${sanitizedPath}/`;
+    return `${origin}${basePath}client-portal.html?portal=${encodeURIComponent(slug)}`;
+}
+
+function ensurePortalSelection() {
+    const portals = currentData.portals || [];
+    if (!portals.length) {
+        selectedPortalSlug = null;
+        return;
+    }
+
+    const exists = portals.some((portal) => portal.slug === selectedPortalSlug);
+    if (!exists) {
+        selectedPortalSlug = portals[0].slug;
+    }
+}
+
+function updatePortalShareInterface() {
+    ensurePortalSelection();
+    const portal = findPortalBySlug(selectedPortalSlug);
+    const shareInput = getElement(DASHBOARD_SELECTORS.portalShareInput);
+    const summaryName = getElement(DASHBOARD_SELECTORS.portalSummaryName);
+    const summaryProducts = getElement(DASHBOARD_SELECTORS.portalSummaryProducts);
+    const summaryContact = getElement(DASHBOARD_SELECTORS.portalSummaryContact);
+
+    const link = portal ? buildPortalLink(portal.slug) : '';
+
+    setFeedback(DASHBOARD_SELECTORS.portalShareFeedback);
+
+    if (shareInput) {
+        shareInput.value = link;
+        shareInput.dataset.portalSlug = portal?.slug ?? '';
+    }
+
+    if (summaryName) {
+        summaryName.textContent = portal?.name ?? 'Sin portal seleccionado';
+    }
+
+    if (summaryProducts) {
+        const productCount = portal ? getPortalProducts(portal).length : 0;
+        summaryProducts.textContent = productCount === 1 ? '1 producto publicado' : `${productCount} productos publicados`;
+    }
+
+    if (summaryContact) {
+        const phone = portal?.contactPhone ? ` · ${portal.contactPhone}` : '';
+        summaryContact.textContent = portal?.contactEmail ? `${portal.contactEmail}${phone}` : 'Completa los datos de contacto en la configuración.';
+    }
+}
+
+async function copyTextToClipboard(text) {
+    if (!text) return false;
+
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (error) {
+        console.warn('No se pudo copiar mediante la API del navegador, se intentará con un método alternativo.', error);
+    }
+
+    const input = document.createElement('input');
+    input.value = text;
+    input.setAttribute('type', 'text');
+    input.setAttribute('readonly', '');
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.select();
+
+    let copied = false;
+    try {
+        copied = document.execCommand('copy');
+    } catch (error) {
+        console.error('No fue posible copiar el enlace:', error);
+    }
+
+    document.body.removeChild(input);
+    return copied;
+}
+
+function renderClientPortalCards(portals = []) {
+    const list = getElement(DASHBOARD_SELECTORS.portalList);
+    if (!list) return;
+
+    if (!portals.length) {
+        list.innerHTML = `
+            <p class="portal-empty">Aún no has creado portales públicos para compartir tu catálogo.</p>
+        `;
+        return;
+    }
+
+    const markup = portals
+        .map((portal) => {
+            const isActive = portal.slug === selectedPortalSlug;
+            const link = buildPortalLink(portal.slug);
+            const productCount = getPortalProducts(portal).length;
+            const totalProductsLabel = productCount === 1 ? '1 producto' : `${productCount} productos`;
+            const accentColor = portal.accentColor || '#4f46e5';
+
+            return `
+                <article class="portal-card ${isActive ? 'active' : ''}" data-portal-card data-portal-slug="${escapeHtml(
+                portal.slug
+            )}">
+                    <header class="portal-card-header">
+                        <span class="portal-card-color" style="--portal-color: ${escapeHtml(accentColor)}"></span>
+                        <div>
+                            <h4 class="portal-card-title">${escapeHtml(portal.name ?? 'Portal')}</h4>
+                            <p class="portal-card-description">${escapeHtml(portal.description ?? '')}</p>
+                        </div>
+                    </header>
+                    <dl class="portal-card-meta">
+                        <div>
+                            <dt>Productos publicados</dt>
+                            <dd>${totalProductsLabel}</dd>
+                        </div>
+                        <div>
+                            <dt>Contacto</dt>
+                            <dd>${escapeHtml(portal.contactEmail ?? 'Sin correo')}</dd>
+                        </div>
+                    </dl>
+                    <footer class="portal-card-actions">
+                        <button type="button" class="portal-card-button" data-portal-action="select" data-portal-slug="${escapeHtml(
+                portal.slug
+            )}">Seleccionar</button>
+                        <button type="button" class="portal-card-button" data-portal-action="copy" data-portal-slug="${escapeHtml(
+                portal.slug
+            )}" data-portal-link="${escapeHtml(link)}">Copiar enlace</button>
+                        <a class="portal-card-link" data-portal-action="preview" data-portal-slug="${escapeHtml(
+                portal.slug
+            )}" href="${escapeHtml(link)}" target="_blank" rel="noopener">Ver vista previa</a>
+                    </footer>
+                </article>
+            `;
+        })
+        .join('');
+
+    list.innerHTML = markup;
+}
+
+function populateProductPortalSelect(portals = []) {
+    const select = getElement(DASHBOARD_SELECTORS.productPortalSelect);
+    if (!select) return;
+
+    const previousValue = select.value;
+
+    const optionsMarkup = portals
+        .map(
+            (portal) => `
+                <option value="${escapeHtml(portal.id)}">${escapeHtml(portal.name ?? 'Portal')}</option>
+            `
+        )
+        .join('');
+
+    select.innerHTML = optionsMarkup;
+
+    const preferredPortal = portals.find((portal) => portal.slug === selectedPortalSlug) || portals[0];
+
+    if (previousValue && portals.some((portal) => String(portal.id) === String(previousValue))) {
+        select.value = previousValue;
+    } else if (preferredPortal) {
+        select.value = preferredPortal.id;
+    }
+}
+
+function togglePortalForm(show) {
+    const form = getElement(DASHBOARD_SELECTORS.portalForm);
+    const toggle = getElement(DASHBOARD_SELECTORS.portalFormToggle);
+
+    isPortalFormVisible = Boolean(show);
+
+    if (form) {
+        form.classList.toggle('hidden', !isPortalFormVisible);
+    }
+
+    if (toggle) {
+        toggle.setAttribute('aria-expanded', String(isPortalFormVisible));
+        toggle.textContent = isPortalFormVisible ? 'Cerrar formulario' : 'Crear portal';
+    }
+
+    if (!isPortalFormVisible) {
+        form?.reset();
+        setFeedback(DASHBOARD_SELECTORS.portalFormFeedback);
+    }
+}
+
+function createSlug(value) {
+    return value
+        .normalize('NFD')
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        || 'portal';
+}
+
+function handlePortalFormSubmit(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const name = String(formData.get('name') || '').trim();
+    const slugInput = String(formData.get('slug') || '').trim();
+    const description = String(formData.get('description') || '').trim();
+    const contactEmail = String(formData.get('contactEmail') || '').trim();
+    const contactPhone = String(formData.get('contactPhone') || '').trim();
+    const accentColor = String(formData.get('accentColor') || '').trim();
+    const heroTitle = String(formData.get('heroTitle') || '').trim();
+    const heroSubtitle = String(formData.get('heroSubtitle') || '').trim();
+    const bannerImage = String(formData.get('bannerImage') || '').trim();
+    const termsRaw = String(formData.get('terms') || '').trim();
+
+    if (!name || !contactEmail) {
+        setFeedback(
+            DASHBOARD_SELECTORS.portalFormFeedback,
+            'Por favor completa al menos el nombre y el correo de contacto.',
+            'error'
+        );
+        return;
+    }
+
+    const slug = createSlug(slugInput || name);
+    const existingSlug = (currentData.portals || []).some((portal) => portal.slug === slug);
+
+    if (existingSlug) {
+        setFeedback(
+            DASHBOARD_SELECTORS.portalFormFeedback,
+            'Ya existe un portal con ese identificador. Ajusta el slug manualmente.',
+            'error'
+        );
+        return;
+    }
+
+    const newPortal = {
+        id: `portal-${Date.now()}`,
+        slug,
+        name,
+        description,
+        contactEmail,
+        contactPhone,
+        accentColor: accentColor || '#4f46e5',
+        heroTitle: heroTitle || name,
+        heroSubtitle: heroSubtitle || description,
+        bannerImage,
+        productIds: [],
+        terms: termsRaw ? termsRaw.split('\n').map((term) => term.trim()).filter(Boolean) : []
+    };
+
+    currentData.portals = [newPortal, ...(currentData.portals || [])];
+    selectedPortalSlug = newPortal.slug;
+
+    setFeedback(DASHBOARD_SELECTORS.portalFormFeedback, 'Portal creado correctamente.', 'success');
+
+    setTimeout(() => {
+        togglePortalForm(false);
+        renderDashboard(currentData);
+    }, 600);
+}
+
+function handlePortalListClick(event) {
+    const actionElement = event.target.closest('[data-portal-action]');
+    if (!actionElement) return;
+
+    const action = actionElement.dataset.portalAction;
+    const portalSlug = actionElement.dataset.portalSlug;
+    const portal = findPortalBySlug(portalSlug);
+
+    if (!portal) {
+        setFeedback(DASHBOARD_SELECTORS.portalShareFeedback, 'No se encontró el portal seleccionado.', 'error');
+        return;
+    }
+
+    switch (action) {
+        case 'select':
+            selectedPortalSlug = portal.slug;
+            renderClientPortalCards(currentData.portals);
+            updatePortalShareInterface();
+            break;
+        case 'copy':
+            copyTextToClipboard(buildPortalLink(portal.slug)).then((copied) => {
+                const feedbackType = copied ? 'success' : 'error';
+                const message = copied
+                    ? 'Enlace copiado al portapapeles.'
+                    : 'No fue posible copiar el enlace automáticamente.';
+                setFeedback(DASHBOARD_SELECTORS.portalShareFeedback, message, feedbackType);
+            });
+            break;
+        default:
+            break;
+    }
+}
+
+function handlePortalShareCopy() {
+    const shareInput = getElement(DASHBOARD_SELECTORS.portalShareInput);
+    if (!shareInput) return;
+
+    const link = shareInput.value;
+    copyTextToClipboard(link).then((copied) => {
+        const feedbackType = copied ? 'success' : 'error';
+        const message = copied
+            ? 'Enlace copiado al portapapeles.'
+            : 'No fue posible copiar el enlace automáticamente.';
+        setFeedback(DASHBOARD_SELECTORS.portalShareFeedback, message, feedbackType);
+    });
+}
+
+function handlePortalShareInputFocus(event) {
+    event.currentTarget?.select?.();
 }
 
 function formatCurrency(amount) {
@@ -434,7 +527,7 @@ function renderProductCatalog(products) {
     if (!tableBody) return;
 
     if (!products.length) {
-        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No hay productos en el catálogo</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No hay productos en el catálogo</td></tr>';
         return;
     }
 
@@ -443,6 +536,7 @@ function renderProductCatalog(products) {
             const rawName = product.name ?? 'Producto';
             const rawCategory = product.category ?? 'Sin categoría';
             const rawStatus = product.status ?? 'Sin estado';
+            const portalName = getPortalLabel(product.portalId);
             const nameContent = escapeHtml(rawName);
             const categoryContent = escapeHtml(rawCategory);
             const statusContent = escapeHtml(rawStatus);
@@ -459,6 +553,7 @@ function renderProductCatalog(products) {
                     </td>
                     <td>${nameContent}</td>
                     <td>${categoryContent}</td>
+                    <td>${escapeHtml(portalName)}</td>
                     <td>${formatCurrency(product.price ?? 0)}</td>
                     <td>${typeof product.stock === 'number' ? `${product.stock} unidades` : '—'}</td>
                     <td><span class="badge ${product.statusClass ?? ''}">${statusContent}</span></td>
@@ -1388,6 +1483,9 @@ function toggleAddProductForm(show) {
 
     if (form) {
         form.classList.toggle('hidden', !isAddProductFormVisible);
+        if (isAddProductFormVisible) {
+            populateProductPortalSelect(currentData.portals || []);
+        }
     }
 
     if (button) {
@@ -1397,6 +1495,7 @@ function toggleAddProductForm(show) {
 
     if (!isAddProductFormVisible) {
         form?.reset();
+        populateProductPortalSelect(currentData.portals || []);
         setFeedback(DASHBOARD_SELECTORS.addProductFeedback);
     }
 }
@@ -1429,9 +1528,19 @@ function handleAddProductSubmit(event) {
     const stock = Number(formData.get('stock'));
     const status = String(formData.get('status') || '').trim() || 'Disponible';
     const image = String(formData.get('image') || '').trim();
+    const portalId = String(formData.get('portalId') || '').trim() || String(currentData.portals?.[0]?.id ?? '');
 
     if (!name || !category || Number.isNaN(price) || Number.isNaN(stock)) {
         setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Completa todos los campos antes de guardar.', 'error');
+        return;
+    }
+
+    if (!portalId) {
+        setFeedback(
+            DASHBOARD_SELECTORS.addProductFeedback,
+            'Selecciona la empresa a la que pertenece el producto.',
+            'error'
+        );
         return;
     }
 
@@ -1443,10 +1552,27 @@ function handleAddProductSubmit(event) {
         stock: Math.max(0, Math.trunc(stock)),
         status,
         statusClass: getStatusClass(status),
-        image
+        image,
+        portalId
     };
 
     currentData.products = [newProduct, ...currentData.products];
+    currentData.portals = (currentData.portals || []).map((portal) => {
+        if (String(portal.id) === String(portalId)) {
+            const productIds = Array.isArray(portal.productIds) ? portal.productIds : [];
+            return {
+                ...portal,
+                productIds: [newProduct.id, ...productIds.filter((id) => String(id) !== String(newProduct.id))]
+            };
+        }
+        return portal;
+    });
+
+    const productPortal = findPortalById(portalId);
+    if (productPortal?.slug) {
+        selectedPortalSlug = productPortal.slug;
+    }
+
     renderDashboard(currentData);
 
     setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Producto agregado correctamente.', 'success');
@@ -1491,6 +1617,10 @@ function setActivePanel(panel) {
 
     if (target !== 'settings') {
         applySettings(currentData.settings || sampleDashboardData.settings);
+    }
+
+    if (target !== 'client-portals') {
+        togglePortalForm(false);
     }
 }
 
@@ -1609,6 +1739,27 @@ export function initDashboard({ supabase }) {
     settingsForm?.addEventListener('submit', handleSettingsSubmit);
     settingsForm?.addEventListener('input', handleSettingsPreviewChange);
 
+    const portalToggleButton = getElement(DASHBOARD_SELECTORS.portalFormToggle);
+    const portalForm = getElement(DASHBOARD_SELECTORS.portalForm);
+    const portalFormCancel = getElement(DASHBOARD_SELECTORS.portalFormCancel);
+    const portalList = getElement(DASHBOARD_SELECTORS.portalList);
+    const portalCopyButton = getElement(DASHBOARD_SELECTORS.portalCopyButton);
+    const portalShareInput = getElement(DASHBOARD_SELECTORS.portalShareInput);
+
+    portalToggleButton?.addEventListener('click', () => {
+        togglePortalForm(!isPortalFormVisible);
+    });
+
+    portalFormCancel?.addEventListener('click', () => {
+        togglePortalForm(false);
+    });
+
+    portalForm?.addEventListener('submit', handlePortalFormSubmit);
+    portalList?.addEventListener('click', handlePortalListClick);
+    portalCopyButton?.addEventListener('click', handlePortalShareCopy);
+    portalShareInput?.addEventListener('focus', handlePortalShareInputFocus);
+    portalShareInput?.addEventListener('click', handlePortalShareInputFocus);
+
     logoutButton?.addEventListener('click', async () => {
         if (!supabaseClient) return;
         const button = logoutButton;
@@ -1631,6 +1782,10 @@ export function initDashboard({ supabase }) {
 
 export function renderDashboard(data = currentData) {
     currentData = cloneData(data);
+    ensurePortalSelection();
+    renderClientPortalCards(currentData.portals || []);
+    populateProductPortalSelect(currentData.portals || []);
+    updatePortalShareInterface();
     renderStats(currentData);
     renderRecentSalesTable(currentData.sales);
     renderProductCatalog(currentData.products);
@@ -1676,6 +1831,7 @@ export function setDashboardData(data) {
         clients: Array.isArray(data.clients) ? data.clients : [],
         products: Array.isArray(data.products) ? data.products : [],
         inventoryAdjustments: Array.isArray(data.inventoryAdjustments) ? data.inventoryAdjustments : [],
+        portals: Array.isArray(data.portals) ? data.portals : cloneData(sampleDashboardData.portals || []),
         settings:
             data.settings && typeof data.settings === 'object'
                 ? data.settings
