@@ -115,10 +115,46 @@
                         <h3 class="section-subtitle">Catálogo de productos</h3>
                         <p class="catalog-hint">Consulta la disponibilidad, precios y estado de tus productos</p>
                     </div>
-                    <div class="catalog-meta">
+                    <div class="catalog-actions">
                         <span class="catalog-counter" id="catalogProductsTotal">0 productos</span>
+                        <button class="catalog-add-button" type="button" id="addProductButton">Agregar producto</button>
                     </div>
                 </header>
+
+                <form id="addProductForm" class="catalog-form hidden" autocomplete="off">
+                    <div class="catalog-form-grid">
+                        <label class="catalog-form-field">
+                            <span>Nombre del producto</span>
+                            <input type="text" name="name" placeholder="Ej. Caja de chocolates" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Categoría</span>
+                            <input type="text" name="category" placeholder="Ej. Dulces" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Precio</span>
+                            <input type="number" name="price" min="0" step="0.01" placeholder="₡0.00" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Inventario</span>
+                            <input type="number" name="stock" min="0" step="1" placeholder="0" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Estado</span>
+                            <select name="status" required>
+                                <option value="Disponible" selected>Disponible</option>
+                                <option value="Bajo stock">Bajo stock</option>
+                                <option value="Requiere reposición">Requiere reposición</option>
+                                <option value="Agotado">Agotado</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="catalog-form-actions">
+                        <button type="submit" class="catalog-form-submit">Guardar producto</button>
+                        <button type="button" class="catalog-form-cancel" id="cancelAddProduct">Cancelar</button>
+                    </div>
+                    <p class="catalog-form-feedback" role="status" data-feedback="add-product"></p>
+                </form>
 
                 <div class="catalog-table-wrapper">
                     <table class="catalog-table">

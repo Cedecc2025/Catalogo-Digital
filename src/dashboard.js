@@ -12,7 +12,11 @@ const DASHBOARD_SELECTORS = {
     dashboardTabs: '[data-dashboard-tab]',
     dashboardPanels: '[data-dashboard-panel]',
     catalogTable: '#catalogProductsTable',
-    catalogCounter: '#catalogProductsTotal'
+    catalogCounter: '#catalogProductsTotal',
+    addProductButton: '#addProductButton',
+    addProductForm: '#addProductForm',
+    addProductCancel: '#cancelAddProduct',
+    addProductFeedback: '[data-feedback="add-product"]'
 };
 
 const sampleDashboardData = {
@@ -140,6 +144,7 @@ function cloneData(data) {
 let currentData = cloneData(sampleDashboardData);
 let supabaseClient = null;
 let activePanel = 'overview';
+let isAddProductFormVisible = false;
 
 function getElement(selector) {
     return document.querySelector(selector);
@@ -150,6 +155,14 @@ function setText(selector, value) {
     if (element) {
         element.textContent = value;
     }
+}
+
+function setFeedback(selector, message = '', type = '') {
+    const element = getElement(selector);
+    if (!element) return;
+
+    element.textContent = message;
+    element.dataset.state = type;
 }
 
 function formatCurrency(amount) {
@@ -241,6 +254,79 @@ function renderProductCatalog(products) {
         .join('');
 }
 
+function toggleAddProductForm(show) {
+    const form = getElement(DASHBOARD_SELECTORS.addProductForm);
+    const button = getElement(DASHBOARD_SELECTORS.addProductButton);
+
+    isAddProductFormVisible = Boolean(show);
+
+    if (form) {
+        form.classList.toggle('hidden', !isAddProductFormVisible);
+    }
+
+    if (button) {
+        button.setAttribute('aria-expanded', String(isAddProductFormVisible));
+        button.textContent = isAddProductFormVisible ? 'Cerrar formulario' : 'Agregar producto';
+    }
+
+    if (!isAddProductFormVisible) {
+        form?.reset();
+        setFeedback(DASHBOARD_SELECTORS.addProductFeedback);
+    }
+}
+
+function getStatusClass(status) {
+    const normalized = (status || '').toLowerCase();
+    switch (normalized) {
+        case 'disponible':
+            return 'success';
+        case 'bajo stock':
+            return 'warning';
+        case 'requiere reposición':
+            return 'alert';
+        case 'agotado':
+            return 'danger';
+        default:
+            return '';
+    }
+}
+
+function handleAddProductSubmit(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const name = String(formData.get('name') || '').trim();
+    const category = String(formData.get('category') || '').trim();
+    const price = Number(formData.get('price'));
+    const stock = Number(formData.get('stock'));
+    const status = String(formData.get('status') || '').trim() || 'Disponible';
+
+    if (!name || !category || Number.isNaN(price) || Number.isNaN(stock)) {
+        setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Completa todos los campos antes de guardar.', 'error');
+        return;
+    }
+
+    const newProduct = {
+        id: Date.now(),
+        name,
+        category,
+        price: Math.max(0, price),
+        stock: Math.max(0, Math.trunc(stock)),
+        status,
+        statusClass: getStatusClass(status)
+    };
+
+    currentData.products = [newProduct, ...currentData.products];
+    renderDashboard(currentData);
+
+    setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Producto agregado correctamente.', 'success');
+    setTimeout(() => {
+        toggleAddProductForm(false);
+    }, 800);
+}
+
 function setActivePanel(panel) {
     const target = panel || 'overview';
     const tabs = document.querySelectorAll(DASHBOARD_SELECTORS.dashboardTabs);
@@ -303,6 +389,20 @@ export function initDashboard({ supabase }) {
         });
     });
 
+    const addProductButton = getElement(DASHBOARD_SELECTORS.addProductButton);
+    const addProductForm = getElement(DASHBOARD_SELECTORS.addProductForm);
+    const addProductCancel = getElement(DASHBOARD_SELECTORS.addProductCancel);
+
+    addProductButton?.addEventListener('click', () => {
+        toggleAddProductForm(!isAddProductFormVisible);
+    });
+
+    addProductCancel?.addEventListener('click', () => {
+        toggleAddProductForm(false);
+    });
+
+    addProductForm?.addEventListener('submit', handleAddProductSubmit);
+
     logoutButton?.addEventListener('click', async () => {
         if (!supabaseClient) return;
         const button = logoutButton;
@@ -343,6 +443,7 @@ export function showDashboard(session) {
 
 export function hideDashboard() {
     toggleSections(false);
+    toggleAddProductForm(false);
 
     setText(DASHBOARD_SELECTORS.userEmail, 'Invitado');
     resetLogoutButton();
