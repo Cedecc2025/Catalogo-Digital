@@ -132,6 +132,10 @@
                             <input type="text" name="category" placeholder="Ej. Dulces" required />
                         </label>
                         <label class="catalog-form-field">
+                            <span>URL de imagen</span>
+                            <input type="url" name="image" placeholder="https://..." inputmode="url" />
+                        </label>
+                        <label class="catalog-form-field">
                             <span>Precio</span>
                             <input type="number" name="price" min="0" step="0.01" placeholder="₡0.00" required />
                         </label>
@@ -160,6 +164,7 @@
                     <table class="catalog-table">
                         <thead>
                             <tr>
+                                <th>Imagen</th>
                                 <th>Producto</th>
                                 <th>Categoría</th>
                                 <th>Precio</th>
@@ -168,7 +173,7 @@
                             </tr>
                         </thead>
                         <tbody id="catalogProductsTable">
-                            <tr><td colspan="5" style="text-align: center;">No hay productos en el catálogo</td></tr>
+                            <tr><td colspan="6" style="text-align: center;">No hay productos en el catálogo</td></tr>
                         </tbody>
                     </table>
                 </div>

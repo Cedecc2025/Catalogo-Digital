@@ -78,7 +78,8 @@ const sampleDashboardData = {
             price: 8500,
             stock: 24,
             status: 'Disponible',
-            statusClass: 'success'
+            statusClass: 'success',
+            image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=200&q=80'
         },
         {
             id: 12,
@@ -87,7 +88,8 @@ const sampleDashboardData = {
             price: 7200,
             stock: 15,
             status: 'Disponible',
-            statusClass: 'success'
+            statusClass: 'success',
+            image: 'https://images.unsplash.com/photo-1485808191679-5f86510681a2?auto=format&fit=crop&w=200&q=80'
         },
         {
             id: 13,
@@ -96,7 +98,8 @@ const sampleDashboardData = {
             price: 11900,
             stock: 8,
             status: 'Bajo stock',
-            statusClass: 'warning'
+            statusClass: 'warning',
+            image: 'https://images.unsplash.com/photo-1516684732162-798a0062be99?auto=format&fit=crop&w=200&q=80'
         },
         {
             id: 14,
@@ -105,7 +108,8 @@ const sampleDashboardData = {
             price: 9800,
             stock: 30,
             status: 'Disponible',
-            statusClass: 'success'
+            statusClass: 'success',
+            image: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=200&q=80'
         },
         {
             id: 15,
@@ -123,7 +127,8 @@ const sampleDashboardData = {
             price: 23500,
             stock: 12,
             status: 'Disponible',
-            statusClass: 'success'
+            statusClass: 'success',
+            image: 'https://images.unsplash.com/photo-1510626176961-4b37d0d4ec9c?auto=format&fit=crop&w=200&q=80'
         },
         {
             id: 17,
@@ -145,6 +150,15 @@ let currentData = cloneData(sampleDashboardData);
 let supabaseClient = null;
 let activePanel = 'overview';
 let isAddProductFormVisible = false;
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 function getElement(selector) {
     return document.querySelector(selector);
@@ -236,21 +250,36 @@ function renderProductCatalog(products) {
     if (!tableBody) return;
 
     if (!products.length) {
-        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay productos en el catálogo</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No hay productos en el catálogo</td></tr>';
         return;
     }
 
     tableBody.innerHTML = products
-        .map(
-            (product) => `
+        .map((product) => {
+            const rawName = product.name ?? 'Producto';
+            const rawCategory = product.category ?? 'Sin categoría';
+            const rawStatus = product.status ?? 'Sin estado';
+            const nameContent = escapeHtml(rawName);
+            const categoryContent = escapeHtml(rawCategory);
+            const statusContent = escapeHtml(rawStatus);
+            const imageMarkup = product.image
+                ? `<img src="${escapeHtml(product.image)}" alt="Imagen de ${escapeHtml(rawName)}" class="catalog-product-image" loading="lazy" />`
+                : '<span class="catalog-product-placeholder" role="img" aria-label="Sin imagen disponible">🛒</span>';
+
+            return `
                 <tr>
-                    <td>${product.name ?? 'Producto'}</td>
-                    <td>${product.category ?? 'Sin categoría'}</td>
+                    <td>
+                        <div class="catalog-product-thumb">
+                            ${imageMarkup}
+                        </div>
+                    </td>
+                    <td>${nameContent}</td>
+                    <td>${categoryContent}</td>
                     <td>${formatCurrency(product.price ?? 0)}</td>
                     <td>${typeof product.stock === 'number' ? `${product.stock} unidades` : '—'}</td>
-                    <td><span class="badge ${product.statusClass ?? ''}">${product.status ?? 'Sin estado'}</span></td>
-                </tr>`
-        )
+                    <td><span class="badge ${product.statusClass ?? ''}">${statusContent}</span></td>
+                </tr>`;
+        })
         .join('');
 }
 
@@ -302,6 +331,7 @@ function handleAddProductSubmit(event) {
     const price = Number(formData.get('price'));
     const stock = Number(formData.get('stock'));
     const status = String(formData.get('status') || '').trim() || 'Disponible';
+    const image = String(formData.get('image') || '').trim();
 
     if (!name || !category || Number.isNaN(price) || Number.isNaN(stock)) {
         setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Completa todos los campos antes de guardar.', 'error');
@@ -315,7 +345,8 @@ function handleAddProductSubmit(event) {
         price: Math.max(0, price),
         stock: Math.max(0, Math.trunc(stock)),
         status,
-        statusClass: getStatusClass(status)
+        statusClass: getStatusClass(status),
+        image
     };
 
     currentData.products = [newProduct, ...currentData.products];
