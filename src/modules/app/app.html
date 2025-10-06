@@ -1,0 +1,117 @@
+<div class="container" id="appContainer">
+    <header class="header">
+        <div class="logo-section">
+            <span class="logo">
+                <img id="businessLogo" src="" alt="" class="logo-img" style="display: none;">
+                <span id="logoIcon">🏪</span>
+                <span id="businessName">Mi Negocio</span>
+            </span>
+        </div>
+        <div class="header-buttons">
+            <button class="btn-header" id="openCartBtn">🛒 Carrito <span class="cart-badge" id="cartBadge">0</span></button>
+            <button class="btn-header whatsapp-btn admin-only" id="whatsappProcessBtn">📱 Procesar WhatsApp</button>
+            <button class="btn-header admin-only" id="notificationBtn" style="display: none; position: relative;">
+                🔔 Notificaciones
+                <span class="notification-count" id="notificationCount" style="display: none;">0</span>
+            </button>
+            <button class="btn-header admin-only" id="addProductBtn" style="display: none;">➕ Producto</button>
+            <button class="btn-header admin-only" id="logoutBtn" style="display: none;">🚪 Salir</button>
+        </div>
+    </header>
+
+    <div class="nav-tabs" id="navTabs">
+        <button class="nav-tab active" data-section="catalog">📦 Catálogo</button>
+        <button class="nav-tab" data-section="dashboard">📊 Dashboard</button>
+        <button class="nav-tab" data-section="sales">💰 Ventas</button>
+        <button class="nav-tab" data-section="clients">👥 Clientes</button>
+        <button class="nav-tab" data-section="inventory">📋 Inventario</button>
+        <button class="nav-tab" data-section="chatbot">🤖 Chatbot</button>
+        <button class="nav-tab" data-section="settings">⚙️ Config</button>
+    </div>
+
+    <section id="catalog" class="section active"></section>
+    <section id="dashboard" class="section"></section>
+    <section id="sales" class="section"></section>
+    <section id="clients" class="section"></section>
+    <section id="inventory" class="section"></section>
+    <section id="chatbot" class="section"></section>
+    <section id="settings" class="section"></section>
+</div>
+
+<div class="admin-lock" id="adminLock" title="Cerrar sesión">🔓</div>
+
+<div class="notification-dropdown" id="notificationDropdown">
+    <div class="notification-dropdown-header">
+        <span class="notification-dropdown-title">📬 Centro de Notificaciones</span>
+        <button class="clear-notifications-btn" id="clearNotificationsBtn">Limpiar todo</button>
+    </div>
+    <div class="notification-list" id="notificationList">
+        <div class="notification-empty">
+            <div style="font-size: 48px; margin-bottom: 10px;">📭</div>
+            <p>No hay notificaciones nuevas</p>
+        </div>
+    </div>
+    <div class="notification-settings">
+        <label class="notification-toggle">
+            <input type="checkbox" id="notificationSound" checked>
+            <span style="font-size: 14px;">🔊 Sonido de notificaciones</span>
+        </label>
+        <label class="notification-toggle" style="margin-top: 10px;">
+            <input type="checkbox" id="browserNotifications">
+            <span style="font-size: 14px;">🌐 Notificaciones del navegador</span>
+        </label>
+    </div>
+</div>
+
+<div class="purchase-popup" id="purchasePopup">
+    <button class="purchase-popup-close" id="closePurchasePopup">×</button>
+    <div class="purchase-popup-header">
+        <div class="purchase-popup-icon">🛍️</div>
+        <div class="purchase-popup-content">
+            <h3>¡Nueva Compra Recibida!</h3>
+            <div class="purchase-popup-details" id="purchaseDetails"></div>
+        </div>
+    </div>
+</div>
+
+<div class="chatbot-widget" id="chatbotWidget" style="display: none;">
+    <button class="chatbot-button" id="toggleChatbot">
+        💬
+        <span class="notification-dot"></span>
+    </button>
+
+    <div class="chatbot-window" id="chatbotWindow">
+        <div class="chatbot-header">
+            <h3>
+                <span class="chatbot-status"></span>
+                <span id="chatbotTitle">Asistente Virtual</span>
+            </h3>
+            <button class="chatbot-close" id="closeChatbot">&times;</button>
+        </div>
+
+        <div class="chatbot-messages" id="chatMessages"></div>
+
+        <div class="chatbot-typing" id="typingIndicator">
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+
+        <div class="chatbot-options" id="chatOptions">
+            <button class="chat-option-btn" data-option="horario">🕐 Horario de atención</button>
+            <button class="chat-option-btn" data-option="entrega">🚚 Tiempos de entrega</button>
+            <button class="chat-option-btn" data-option="pago">💳 Métodos de pago</button>
+            <button class="chat-option-btn" data-option="contacto">📞 Contactar vendedor</button>
+        </div>
+
+        <div class="chatbot-input">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Escribe tu pregunta...">
+            <button class="chat-send" id="sendChatMessage">➤</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="notificationContainer"></div>

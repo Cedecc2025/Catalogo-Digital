@@ -1,0 +1,131 @@
+<div class="controls">
+    <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="searchInput" placeholder="Buscar productos...">
+    </div>
+    <div class="filter-buttons">
+        <button class="filter-btn active" data-category="all">Todos</button>
+        <button class="filter-btn" data-category="Alimentos">Alimentos</button>
+        <button class="filter-btn" data-category="Bebidas">Bebidas</button>
+        <button class="filter-btn" data-category="Tecnología">Tecnología</button>
+        <button class="filter-btn" data-category="Hogar">Hogar</button>
+        <button class="filter-btn" data-category="Ropa">Ropa</button>
+        <button class="filter-btn" data-category="Otros">Otros</button>
+    </div>
+</div>
+
+<div class="products-grid" id="productsGrid"></div>
+
+<div class="modal" id="productModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="productModalTitle">Agregar Producto</h2>
+            <button class="close-modal" data-close="productModal">&times;</button>
+        </div>
+
+        <form id="productForm">
+            <input type="hidden" id="productId">
+
+            <div class="image-upload-section">
+                <h4>Imagen del Producto</h4>
+                <img id="imagePreview" class="image-preview">
+                <input type="file" id="productImageFile" accept="image/*" style="display: none;">
+                <button type="button" class="btn-primary" id="selectImageBtn">📷 Seleccionar Imagen</button>
+                <input type="url" class="form-input" id="productImageUrl" placeholder="O pega URL de imagen" style="margin-top: 10px;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Nombre *</label>
+                <input type="text" class="form-input" id="productName" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Categoría *</label>
+                <select class="form-select" id="productCategory" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="Alimentos">Alimentos</option>
+                    <option value="Bebidas">Bebidas</option>
+                    <option value="Tecnología">Tecnología</option>
+                    <option value="Hogar">Hogar</option>
+                    <option value="Ropa">Ropa</option>
+                    <option value="Salud">Salud</option>
+                    <option value="Otros">Otros</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Descripción</label>
+                <textarea class="form-textarea" id="productDescription"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Precio *</label>
+                <input type="number" class="form-input" id="productPrice" required min="0">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Stock *</label>
+                <input type="number" class="form-input" id="productStock" required min="0">
+            </div>
+
+            <button type="submit" class="btn-primary" style="width: 100%;">Guardar Producto</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="cartModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">🛒 Carrito de Compras</h2>
+            <button class="close-modal" data-close="cartModal">&times;</button>
+        </div>
+
+        <div class="cart-items" id="cartItems">
+            <div class="empty-state">
+                <div class="empty-state-icon">🛒</div>
+                <p>Tu carrito está vacío</p>
+            </div>
+        </div>
+
+        <div id="clientForm" style="display: none;">
+            <h3 style="margin: 20px 0 15px;">Información de Contacto</h3>
+            <div class="form-group">
+                <label class="form-label">Nombre *</label>
+                <input type="text" class="form-input" id="clientName">
+                <div class="error-message" id="nameError">Campo obligatorio</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Teléfono *</label>
+                <input type="tel" class="form-input" id="clientPhone" placeholder="88888888">
+                <div class="error-message" id="phoneError">Campo obligatorio</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Dirección</label>
+                <textarea class="form-textarea" id="clientAddress" placeholder="Dirección de entrega"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notas del Pedido</label>
+                <textarea class="form-textarea" id="clientNotes" placeholder="Instrucciones especiales, horario de entrega, etc."></textarea>
+            </div>
+        </div>
+
+        <div class="cart-total" id="cartTotal" style="display: none;">
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span id="subtotal">₡0</span>
+            </div>
+            <div class="total-row">
+                <span>IVA (13%):</span>
+                <span id="tax">₡0</span>
+            </div>
+            <div class="total-row final">
+                <span>Total:</span>
+                <span id="total">₡0</span>
+            </div>
+            <button class="btn-primary btn-whatsapp" id="sendWhatsAppBtn" style="width: 100%; margin-top: 15px;">📱 Enviar Pedido por WhatsApp</button>
+            <p id="orderInfo" style="margin-top: 10px; text-align: center; color: white; font-size: 12px; opacity: 0.8;">
+                Al enviar, se actualizará el inventario y se registrará la venta
+            </p>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,28 @@
+<div class="sales-processor">
+    <h3>📱 Procesador de Pedidos WhatsApp</h3>
+    <textarea id="whatsappMessageInput" class="whatsapp-textarea" placeholder="Pega aquí el mensaje de WhatsApp"></textarea>
+    <div class="sales-actions">
+        <button class="btn-primary" id="parseWhatsappBtn">Analizar mensaje</button>
+        <button class="btn-primary btn-danger" id="clearWhatsappBtn">Limpiar</button>
+    </div>
+    <div class="parsed-data" id="parsedData"></div>
+</div>
+
+<h3 class="section-subtitle">Historial de Ventas</h3>
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="salesTable">
+            <tr><td colspan="6" style="text-align: center;">No hay ventas</td></tr>
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,62 @@
+<h2 class="section-title">Configuración del negocio</h2>
+<div class="settings-grid">
+    <div class="settings-card">
+        <h3>Información general</h3>
+        <div class="form-group">
+            <label class="form-label" for="settingsBusinessName">Nombre comercial</label>
+            <input type="text" class="form-input" id="settingsBusinessName" placeholder="Mi Negocio">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="settingsLogoUrl">Logo (URL)</label>
+            <input type="url" class="form-input" id="settingsLogoUrl" placeholder="https://...">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="settingsWhatsApp">WhatsApp</label>
+            <input type="text" class="form-input" id="settingsWhatsApp" placeholder="50688888888">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="settingsEmail">Correo electrónico</label>
+            <input type="email" class="form-input" id="settingsEmail" placeholder="correo@negocio.com">
+        </div>
+        <button class="btn-primary" id="saveSettingsBtn">Guardar información</button>
+    </div>
+
+    <div class="settings-card">
+        <h3>Personalización</h3>
+        <div class="color-picker">
+            <label>Color primario</label>
+            <input type="color" id="primaryColor">
+        </div>
+        <div class="color-picker">
+            <label>Degradado inicio</label>
+            <input type="color" id="bgColor1">
+        </div>
+        <div class="color-picker">
+            <label>Degradado final</label>
+            <input type="color" id="bgColor2">
+        </div>
+    </div>
+
+    <div class="settings-card">
+        <h3>Enlace público del catálogo</h3>
+        <div class="form-group">
+            <label class="form-label" for="settingsPublicSlug">Identificador de catálogo</label>
+            <input type="text" class="form-input" id="settingsPublicSlug" placeholder="mi-negocio">
+            <p class="form-helper">Solo letras, números y guiones. Debe ser único para tu negocio.</p>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="settingsPublicUrl">Comparte este enlace</label>
+            <div class="share-link">
+                <input type="text" class="form-input" id="settingsPublicUrl" readonly>
+                <button type="button" class="btn-copy-link" id="copyPublicLinkBtn">Copiar</button>
+            </div>
+            <p class="form-helper" id="settingsPublicLinkHelper">Agrega un identificador para generar un enlace único de tu catálogo.</p>
+        </div>
+    </div>
+</div>
+
+<div class="settings-actions">
+    <button class="btn-primary" id="exportDataBtn">💾 Exportar</button>
+    <button class="btn-primary" id="importDataBtn">📂 Importar</button>
+    <button class="btn-primary btn-danger" id="factoryResetBtn">🏭 Reinicio total</button>
+</div>

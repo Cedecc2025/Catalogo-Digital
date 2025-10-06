@@ -1,0 +1,50 @@
+.sales-processor {
+    background: var(--light);
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.whatsapp-textarea {
+    min-height: 160px;
+    width: 100%;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    padding: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+.sales-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.parsed-data {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.parsed-data.show {
+    display: flex;
+}
+
+.sale-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: white;
+}
+
+.sale-status-pill.pending { background: var(--warning); }
+.sale-status-pill.completed { background: var(--success); }
