@@ -1,7 +1,4 @@
 import { supabase } from './supabaseClient.js';
-import { getInitialDashboardData } from './sampleData.js';
-
-const initialData = getInitialDashboardData();
 let activePortal = null;
 let portalProducts = [];
 const selectedItems = new Map();
@@ -380,12 +377,116 @@ async function handleRequestSubmit(event) {
     updateProductButtons();
 }
 
+function parseArrayField(value) {
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (!value && value !== 0) {
+        return [];
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+        } catch (error) {
+            // El valor no estaba en formato JSON, continuamos.
+        }
+
+        return trimmed
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+
+    if (typeof value === 'object') {
+        return Object.values(value).filter(Boolean);
+    }
+
+    return [];
+}
+
+function normalizePortalRecord(record, slug) {
+    if (!record) {
+        return null;
+    }
+
+    const productIds = parseArrayField(record.product_ids ?? record.productIds);
+    const terms = parseArrayField(record.terms ?? record.terms_conditions ?? record.conditions);
+
+    return {
+        id: record.id ?? slug,
+        slug: record.slug ?? slug,
+        name: record.name ?? record.title ?? 'Portal',
+        description: record.description ?? record.summary ?? '',
+        accentColor: record.accent_color ?? record.accentColor ?? '#6366f1',
+        heroTitle: record.hero_title ?? record.heroTitle ?? record.name ?? 'Explora nuestro catálogo',
+        heroSubtitle: record.hero_subtitle ?? record.heroSubtitle ?? record.description ?? '',
+        contactEmail: record.contact_email ?? record.email ?? '',
+        contactPhone: record.contact_phone ?? record.phone ?? '',
+        bannerImage: record.banner_image ?? record.bannerImage ?? record.hero_image ?? '',
+        terms,
+        productIds,
+        heroVideo: record.hero_video ?? record.heroVideo ?? '',
+        heroMediaType: record.hero_media_type ?? record.heroMediaType ?? '',
+        requestIntro: record.request_intro ?? record.requestIntro ?? ''
+    };
+}
+
+async function fetchPortalFromSupabase(slug) {
+    if (!slug) {
+        return null;
+    }
+
+    try {
+        let query = supabase.from('portals').select('*').eq('slug', slug).limit(1);
+        const { data, error } = await query;
+        if (error) {
+            console.warn('No fue posible obtener el portal desde Supabase:', error.message);
+            return null;
+        }
+
+        const record = Array.isArray(data) ? data[0] : data;
+        if (!record) {
+            return null;
+        }
+
+        return normalizePortalRecord(record, slug);
+    } catch (error) {
+        console.error('Error inesperado al consultar Supabase para el portal:', error);
+        return null;
+    }
+}
+
 async function fetchProductsFromSupabase(portal) {
     try {
-        const { data, error } = await supabase
-            .from('products')
-            .select('*')
-            .eq('portal_id', portal.id);
+        if (!portal) {
+            return [];
+        }
+
+        let query = supabase.from('products').select('*');
+
+        const productIds = parseArrayField(portal.productIds);
+
+        if (portal.id) {
+            query = query.eq('portal_id', portal.id);
+        }
+
+        if (productIds.length) {
+            query = query.in('id', productIds);
+        } else if (!portal.id && portal.slug) {
+            query = query.eq('portal_slug', portal.slug);
+        }
+
+        const { data, error } = await query.order('name', { ascending: true });
 
         if (error) {
             console.warn('No fue posible obtener productos desde Supabase:', error.message);
@@ -398,28 +499,18 @@ async function fetchProductsFromSupabase(portal) {
 
         return data.map((item) => ({
             id: item.id,
-            name: item.name || 'Producto',
-            category: item.category || '',
-            price: Number(item.price) || 0,
-            image: item.image || item.image_url || '',
-            shortDescription: item.description || '',
-            portalId: portal.id
+            name: item.name || item.title || 'Producto',
+            category: item.category || item.category_name || '',
+            price: Number(item.price ?? item.unit_price ?? 0) || 0,
+            image: item.image || item.image_url || item.thumbnail || '',
+            shortDescription: item.short_description || item.description || '',
+            description: item.description || '',
+            portalId: item.portal_id ?? portal.id ?? null
         }));
     } catch (error) {
         console.error('Error inesperado al consultar Supabase:', error);
         return [];
     }
-}
-
-function getSampleProducts(portal) {
-    const ids = Array.isArray(portal.productIds) ? portal.productIds.map(String) : [];
-    const allProducts = Array.isArray(initialData.products) ? initialData.products : [];
-
-    if (ids.length) {
-        return allProducts.filter((product) => ids.includes(String(product.id)));
-    }
-
-    return allProducts.filter((product) => String(product.portalId) === String(portal.id));
 }
 
 async function loadPortalData() {
@@ -431,7 +522,9 @@ async function loadPortalData() {
         return;
     }
 
-    const portal = initialData.portals.find((item) => item.slug === portalSlug);
+    showPortalError('Cargando portal…');
+
+    const portal = await fetchPortalFromSupabase(portalSlug);
     if (!portal) {
         showPortalError('El portal solicitado no existe o fue deshabilitado.');
         return;
@@ -444,10 +537,14 @@ async function loadPortalData() {
     renderTerms(portal.terms);
 
     const remoteProducts = await fetchProductsFromSupabase(portal);
-    portalProducts = remoteProducts.length ? remoteProducts : getSampleProducts(portal);
+    portalProducts = remoteProducts;
+
+    selectedItems.clear();
+    setRequestFeedback();
 
     renderProductGrid(portalProducts);
     renderSelectionSummary();
+    updateProductButtons();
 }
 
 function initEventListeners() {

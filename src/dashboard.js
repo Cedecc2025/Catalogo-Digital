@@ -68,13 +68,13 @@ const DASHBOARD_SELECTORS = {
     portalSummaryContact: '[data-portal-summary="contact"]',
     productPortalSelect: '#productPortalSelect'
 };
-const sampleDashboardData = getInitialDashboardData();
+const defaultDashboardState = getInitialDashboardData();
 
 function cloneData(data) {
     return JSON.parse(JSON.stringify(data));
 }
 
-let currentData = cloneData(sampleDashboardData);
+let currentData = cloneData(defaultDashboardState);
 let supabaseClient = null;
 let activePanel = 'overview';
 let isAddProductFormVisible = false;
@@ -83,7 +83,39 @@ let isClientFormVisible = false;
 let editingClientId = null;
 let isInventoryFormVisible = false;
 let isPortalFormVisible = false;
-let selectedPortalSlug = sampleDashboardData.portals?.[0]?.slug ?? null;
+let selectedPortalSlug = defaultDashboardState.portals?.[0]?.slug ?? null;
+let isFetchingDashboardData = false;
+let hasLoadedDashboardData = false;
+let lastLoadedUserId = null;
+
+function getDefaultSettings() {
+    return cloneData(defaultDashboardState.settings || {});
+}
+
+function mergeSettingsWithDefaults(settings = {}) {
+    const defaults = getDefaultSettings();
+    const merged = { ...defaults };
+
+    if (settings && typeof settings === 'object') {
+        Object.entries(settings).forEach(([key, value]) => {
+            merged[key] = value;
+        });
+    }
+
+    if (!merged.portalBaseUrl) {
+        merged.portalBaseUrl = defaults.portalBaseUrl || '';
+    }
+
+    if (typeof merged.portalBaseUrl === 'string') {
+        merged.portalBaseUrl = merged.portalBaseUrl.trim();
+    }
+
+    if (!merged.themeColor) {
+        merged.themeColor = defaults.themeColor || '#6366f1';
+    }
+
+    return merged;
+}
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -111,6 +143,357 @@ function setFeedback(selector, message = '', type = '') {
 
     element.textContent = message;
     element.dataset.state = type;
+}
+
+function parseArrayField(value) {
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (!value && value !== 0) {
+        return [];
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+        } catch (error) {
+            // El valor no estaba en formato JSON, continuamos.
+        }
+
+        return trimmed
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+
+    if (typeof value === 'object') {
+        return Object.values(value).filter(Boolean);
+    }
+
+    return [];
+}
+
+function parseJsonItems(items) {
+    if (Array.isArray(items)) {
+        return items;
+    }
+
+    if (typeof items === 'string') {
+        try {
+            const parsed = JSON.parse(items);
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+        } catch (error) {
+            // No se pudo interpretar como JSON, se ignora.
+        }
+    }
+
+    return [];
+}
+
+function getSaleStatusClass(status) {
+    const normalized = (status || '').toLowerCase();
+    switch (normalized) {
+        case 'completado':
+        case 'pagado':
+        case 'finalizado':
+        case 'entregado':
+            return 'success';
+        case 'pendiente':
+        case 'procesando':
+        case 'en progreso':
+            return 'pending';
+        case 'cancelado':
+        case 'fallido':
+        case 'reembolsado':
+            return 'danger';
+        default:
+            return 'info';
+    }
+}
+
+function normalizeProductRecord(record) {
+    const stockValue = record.stock ?? record.inventory ?? record.quantity ?? null;
+    const stock = Number.isFinite(Number(stockValue)) ? Number(stockValue) : null;
+    const statusLabel = record.status ?? (Number.isFinite(stock) ? getStatusFromStock(stock).status : 'Disponible');
+    const statusClass = record.status_class ?? record.statusClass ?? getStatusClass(statusLabel);
+
+    return {
+        id: record.id,
+        name: record.name ?? record.title ?? 'Producto',
+        category: record.category ?? record.category_name ?? 'Sin categoría',
+        price: Number(record.price ?? record.unit_price ?? 0) || 0,
+        stock: stock,
+        status: statusLabel,
+        statusClass,
+        image: record.image ?? record.image_url ?? record.thumbnail ?? '',
+        description: record.description ?? record.details ?? '',
+        portalId: record.portal_id ?? record.portalId ?? record.portal ?? null,
+        portalIds: parseArrayField(record.portal_ids ?? record.portalIds),
+        sku: record.sku ?? record.code ?? '',
+        createdAt: record.created_at ?? record.createdAt ?? null
+    };
+}
+
+function normalizeSaleRecord(record) {
+    const items = parseJsonItems(record.items).map((item) => ({
+        productId: item.product_id ?? item.productId ?? item.id ?? null,
+        productName: item.productName ?? item.name ?? item.product ?? 'Producto',
+        quantity: Number(item.quantity ?? item.qty ?? 0) || 0,
+        unitPrice: Number(item.unitPrice ?? item.price ?? item.unit_price ?? 0) || 0
+    }));
+
+    const status = record.status ?? record.state ?? 'Pendiente';
+
+    let client = record.client;
+    if (!client) {
+        const name = record.client_name ?? record.customer_name ?? record.customer ?? '';
+        client = name ? { name } : { name: 'Cliente' };
+    }
+
+    return {
+        id: record.id,
+        date: record.date ?? record.created_at ?? record.sale_date ?? new Date().toISOString(),
+        total: Number(record.total ?? record.amount ?? record.total_amount ?? 0) || 0,
+        status,
+        statusClass: record.status_class ?? record.statusClass ?? getSaleStatusClass(status),
+        paymentMethod: record.payment_method ?? record.paymentMethod ?? record.method ?? '—',
+        client,
+        items,
+        notes: record.notes ?? record.comments ?? ''
+    };
+}
+
+function normalizeClientRecord(record) {
+    const status = record.status ?? record.state ?? 'Activo';
+    const email = record.email ?? record.contact_email ?? '';
+    const phone = record.phone ?? record.contact_phone ?? '';
+
+    const nameParts = [record.first_name ?? record.firstName ?? '', record.last_name ?? record.lastName ?? '']
+        .map((part) => String(part || '').trim())
+        .filter(Boolean);
+    const fallbackName = nameParts.join(' ');
+
+    return {
+        id: record.id,
+        name: record.name ?? fallbackName || 'Cliente',
+        email,
+        phone,
+        company: record.company ?? record.company_name ?? '',
+        status,
+        statusClass: record.status_class ?? record.statusClass ?? getClientStatusClass(status),
+        notes: record.notes ?? record.comments ?? ''
+    };
+}
+
+function normalizeInventoryAdjustmentRecord(record) {
+    const quantityValue = Number(record.quantity ?? record.amount ?? 0) || 0;
+    let direction = Number(record.direction);
+    if (!Number.isFinite(direction)) {
+        direction = quantityValue >= 0 ? 1 : -1;
+    }
+
+    return {
+        id: record.id,
+        productId: record.product_id ?? record.productId ?? null,
+        productName: record.product_name ?? record.productName ?? 'Producto',
+        type: record.type ?? record.reason ?? 'Ajuste',
+        quantity: Math.abs(quantityValue),
+        direction,
+        reason: record.reason ?? record.notes ?? '',
+        date: record.date ?? record.created_at ?? new Date().toISOString()
+    };
+}
+
+function normalizePortalRecord(record) {
+    const productIds = parseArrayField(record.product_ids ?? record.productIds);
+    const terms = parseArrayField(record.terms ?? record.terms_conditions ?? record.conditions);
+
+    return {
+        id: record.id,
+        slug: record.slug ?? record.identifier ?? (record.id ? String(record.id) : ''),
+        name: record.name ?? record.title ?? 'Portal',
+        description: record.description ?? record.summary ?? '',
+        accentColor: record.accent_color ?? record.accentColor ?? '#4f46e5',
+        contactEmail: record.contact_email ?? record.email ?? '',
+        contactPhone: record.contact_phone ?? record.phone ?? '',
+        heroTitle: record.hero_title ?? record.heroTitle ?? record.name ?? '',
+        heroSubtitle: record.hero_subtitle ?? record.heroSubtitle ?? record.description ?? '',
+        bannerImage: record.banner_image ?? record.bannerImage ?? record.hero_image ?? '',
+        terms,
+        productIds,
+        createdAt: record.created_at ?? record.createdAt ?? null
+    };
+}
+
+function normalizeSettingsRecords(data) {
+    if (!data) {
+        return mergeSettingsWithDefaults();
+    }
+
+    const defaults = getDefaultSettings();
+    const result = { ...defaults };
+
+    const applyRecord = (record) => {
+        if (!record || typeof record !== 'object') {
+            return;
+        }
+
+        if ('key' in record || 'setting_key' in record || 'name' in record) {
+            const key = record.key ?? record.setting_key ?? record.name;
+            const rawValue = record.value ?? record.setting_value ?? record.content ?? record.data ?? '';
+            const value = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
+            switch ((key || '').toLowerCase()) {
+                case 'companyname':
+                case 'company_name':
+                case 'name':
+                    result.companyName = value || '';
+                    break;
+                case 'companyemail':
+                case 'company_email':
+                case 'email':
+                    result.companyEmail = value || '';
+                    break;
+                case 'companyphone':
+                case 'company_phone':
+                case 'phone':
+                    result.companyPhone = value || '';
+                    break;
+                case 'companyaddress':
+                case 'company_address':
+                case 'address':
+                    result.companyAddress = value || '';
+                    break;
+                case 'tagline':
+                case 'slogan':
+                    result.tagline = value || '';
+                    break;
+                case 'themecolor':
+                case 'theme_color':
+                case 'accentcolor':
+                case 'accent_color':
+                    result.themeColor = value || '#6366f1';
+                    break;
+                case 'logourl':
+                case 'logo_url':
+                case 'logo':
+                    result.logoUrl = value || '';
+                    break;
+                case 'portalbaseurl':
+                case 'portal_base_url':
+                    result.portalBaseUrl = value || '';
+                    break;
+                default:
+                    break;
+            }
+            return;
+        }
+
+        const mapping = {
+            companyName: ['company_name', 'companyName', 'name'],
+            companyEmail: ['company_email', 'companyEmail', 'email'],
+            companyPhone: ['company_phone', 'companyPhone', 'phone'],
+            companyAddress: ['company_address', 'companyAddress', 'address'],
+            tagline: ['tagline', 'slogan'],
+            themeColor: ['theme_color', 'themeColor', 'accent_color', 'accentColor'],
+            logoUrl: ['logo_url', 'logoUrl', 'logo'],
+            portalBaseUrl: ['portal_base_url', 'portalBaseUrl']
+        };
+
+        Object.entries(mapping).forEach(([target, keys]) => {
+            keys.some((key) => {
+                if (key in record && record[key] !== undefined && record[key] !== null) {
+                    result[target] = record[key];
+                    return true;
+                }
+                return false;
+            });
+        });
+    };
+
+    if (Array.isArray(data)) {
+        data.forEach(applyRecord);
+    } else {
+        applyRecord(data);
+    }
+
+    return mergeSettingsWithDefaults(result);
+}
+
+async function fetchTableData(table, { select = '*', order } = {}) {
+    if (!supabaseClient) {
+        return [];
+    }
+
+    try {
+        let query = supabaseClient.from(table).select(select);
+        if (order && order.column) {
+            query = query.order(order.column, { ascending: order.ascending !== false });
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            console.warn(`No se pudo cargar la tabla ${table} desde Supabase:`, error.message);
+            return [];
+        }
+
+        return Array.isArray(data) ? data : data ? [data] : [];
+    } catch (error) {
+        console.error(`Error inesperado al consultar Supabase (${table}):`, error);
+        return [];
+    }
+}
+
+async function loadDashboardDataFromSupabase() {
+    if (!supabaseClient || isFetchingDashboardData) {
+        return;
+    }
+
+    isFetchingDashboardData = true;
+
+    try {
+        const [productsRaw, salesRaw, clientsRaw, inventoryRaw, portalsRaw, settingsRaw] = await Promise.all([
+            fetchTableData('products'),
+            fetchTableData('sales'),
+            fetchTableData('clients'),
+            fetchTableData('inventory_adjustments'),
+            fetchTableData('portals'),
+            fetchTableData('settings')
+        ]);
+
+        const normalized = {
+            products: productsRaw.map(normalizeProductRecord),
+            sales: salesRaw.map(normalizeSaleRecord),
+            clients: clientsRaw.map(normalizeClientRecord),
+            inventoryAdjustments: inventoryRaw.map(normalizeInventoryAdjustmentRecord),
+            portals: portalsRaw.map(normalizePortalRecord).filter((portal) => portal.slug),
+            settings: normalizeSettingsRecords(settingsRaw)
+        };
+
+        currentData = normalized;
+        selectedPortalSlug = currentData.portals.some((portal) => portal.slug === selectedPortalSlug)
+            ? selectedPortalSlug
+            : currentData.portals[0]?.slug ?? null;
+
+        renderDashboard(currentData);
+        setActivePanel(activePanel);
+        hasLoadedDashboardData = true;
+    } catch (error) {
+        console.error('Error inesperado al cargar datos del dashboard desde Supabase:', error);
+        hasLoadedDashboardData = false;
+    } finally {
+        isFetchingDashboardData = false;
+    }
 }
 
 function findPortalById(portalId) {
@@ -1663,7 +2046,7 @@ function setActivePanel(panel) {
     }
 
     if (target !== 'settings') {
-        applySettings(currentData.settings || sampleDashboardData.settings);
+        applySettings(currentData.settings || getDefaultSettings());
     }
 
     if (target !== 'client-portals') {
@@ -1829,9 +2212,18 @@ export function initDashboard({ supabase }) {
 
 export function renderDashboard(data = currentData) {
     currentData = cloneData(data);
+    currentData.sales = Array.isArray(currentData.sales) ? currentData.sales : [];
+    currentData.clients = Array.isArray(currentData.clients) ? currentData.clients : [];
+    currentData.products = Array.isArray(currentData.products) ? currentData.products : [];
+    currentData.inventoryAdjustments = Array.isArray(currentData.inventoryAdjustments)
+        ? currentData.inventoryAdjustments
+        : [];
+    currentData.portals = Array.isArray(currentData.portals) ? currentData.portals : [];
+    currentData.settings = mergeSettingsWithDefaults(currentData.settings);
+
     ensurePortalSelection();
-    renderClientPortalCards(currentData.portals || []);
-    populateProductPortalSelect(currentData.portals || []);
+    renderClientPortalCards(currentData.portals);
+    populateProductPortalSelect(currentData.portals);
     updatePortalShareInterface();
     renderStats(currentData);
     renderRecentSalesTable(currentData.sales);
@@ -1843,13 +2235,13 @@ export function renderDashboard(data = currentData) {
     renderClientsTable(currentData.clients);
     populateInventoryProductSelect(currentData.products);
     renderInventoryTable(currentData.products);
-    renderInventoryHistory(currentData.inventoryAdjustments || []);
-    renderSettingsForm(currentData.settings || {});
-    applySettings(currentData.settings || {});
+    renderInventoryHistory(currentData.inventoryAdjustments);
+    renderSettingsForm(currentData.settings);
+    applySettings(currentData.settings);
     handleInventoryTypeChange();
 }
 
-export function showDashboard(session) {
+export async function showDashboard(session) {
     toggleSections(true);
     resetLogoutButton();
 
@@ -1858,6 +2250,18 @@ export function showDashboard(session) {
 
     renderDashboard(currentData);
     setActivePanel(activePanel);
+
+    if (!supabaseClient) {
+        return;
+    }
+
+    const userId = session?.user?.id ?? null;
+    const shouldReload = !hasLoadedDashboardData || lastLoadedUserId !== userId;
+
+    if (shouldReload) {
+        lastLoadedUserId = userId;
+        await loadDashboardDataFromSupabase();
+    }
 }
 
 export function hideDashboard() {
@@ -1867,23 +2271,27 @@ export function hideDashboard() {
 
     setText(DASHBOARD_SELECTORS.userEmail, 'Invitado');
     resetLogoutButton();
+    currentData = cloneData(defaultDashboardState);
+    selectedPortalSlug = defaultDashboardState.portals?.[0]?.slug ?? null;
+    hasLoadedDashboardData = false;
+    lastLoadedUserId = null;
     activePanel = 'overview';
     setActivePanel(activePanel);
 }
 
 export function setDashboardData(data) {
     if (!data) return;
-    currentData = cloneData({
-        sales: Array.isArray(data.sales) ? data.sales : [],
-        clients: Array.isArray(data.clients) ? data.clients : [],
-        products: Array.isArray(data.products) ? data.products : [],
-        inventoryAdjustments: Array.isArray(data.inventoryAdjustments) ? data.inventoryAdjustments : [],
-        portals: Array.isArray(data.portals) ? data.portals : cloneData(sampleDashboardData.portals || []),
-        settings:
-            data.settings && typeof data.settings === 'object'
-                ? data.settings
-                : cloneData(sampleDashboardData.settings)
-    });
+    currentData = {
+        sales: Array.isArray(data.sales) ? cloneData(data.sales) : [],
+        clients: Array.isArray(data.clients) ? cloneData(data.clients) : [],
+        products: Array.isArray(data.products) ? cloneData(data.products) : [],
+        inventoryAdjustments: Array.isArray(data.inventoryAdjustments)
+            ? cloneData(data.inventoryAdjustments)
+            : [],
+        portals: Array.isArray(data.portals) ? cloneData(data.portals) : cloneData(defaultDashboardState.portals || []),
+        settings: mergeSettingsWithDefaults(data.settings)
+    };
+
     renderDashboard(currentData);
 }
 

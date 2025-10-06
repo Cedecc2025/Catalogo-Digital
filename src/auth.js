@@ -80,7 +80,9 @@ export function initAuth({ supabase, onLoginSuccess } = {}) {
             setMessage('login', error.message ?? 'No se pudo iniciar sesión.', 'error');
         } else if (data?.session) {
             setMessage('login', 'Inicio de sesión exitoso. ¡Bienvenido!', 'success');
-            onLoginSuccess?.(data.session);
+            if (typeof onLoginSuccess === 'function') {
+                await onLoginSuccess(data.session);
+            }
         } else {
             setMessage('login', 'Revisa tu correo para continuar.', 'success');
         }
@@ -114,8 +116,8 @@ export function initAuth({ supabase, onLoginSuccess } = {}) {
                 : 'Cuenta creada y sesión iniciada. ¡Bienvenido!';
             setMessage('register', successMessage, 'success');
             registerForm.reset();
-            if (!requiresConfirmation && data.session) {
-                onLoginSuccess?.(data.session);
+            if (!requiresConfirmation && data.session && typeof onLoginSuccess === 'function') {
+                await onLoginSuccess(data.session);
             }
         } else {
             setMessage('register', 'Cuenta creada. Revisa tu correo para continuar.', 'success');

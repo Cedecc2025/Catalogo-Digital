@@ -7,8 +7,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     initAuth({
         supabase,
-        onLoginSuccess: (session) => {
-            showDashboard(session);
+        onLoginSuccess: async (session) => {
+            await showDashboard(session);
         }
     });
 
@@ -21,7 +21,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (data?.session) {
-            showDashboard(data.session);
+            await showDashboard(data.session);
         } else {
             hideDashboard();
         }
@@ -30,7 +30,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         hideDashboard();
     }
 
-    supabase.auth.onAuthStateChange((event, session) => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_OUT') {
             hideDashboard();
             const loginMessage = document.querySelector('[data-feedback-for="login"]');
@@ -42,7 +42,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (session?.user && ['SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event)) {
-            showDashboard(session);
+            await showDashboard(session);
         }
     });
 });
