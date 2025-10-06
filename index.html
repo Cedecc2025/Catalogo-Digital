@@ -61,6 +61,9 @@
                 <button class="dashboard-tab active" type="button" data-dashboard-tab="overview">Resumen</button>
                 <button class="dashboard-tab" type="button" data-dashboard-tab="catalog">Catálogo</button>
                 <button class="dashboard-tab" type="button" data-dashboard-tab="sales">Ventas</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="clients">Clientes</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="inventory">Inventario</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="settings">Configuración</button>
             </nav>
 
             <section class="dashboard-panel" data-dashboard-panel="overview">
@@ -262,6 +265,217 @@
                         </tbody>
                     </table>
                 </div>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="clients" aria-label="Gestión de clientes">
+                <header class="clients-header">
+                    <div>
+                        <h3 class="section-subtitle">Clientes</h3>
+                        <p class="clients-hint">Administra el directorio de clientes para tus ventas y seguimientos</p>
+                    </div>
+                    <div class="clients-actions">
+                        <span class="clients-counter" id="clientsCounter">0 clientes</span>
+                        <button class="clients-add-button" type="button" id="addClientButton">Agregar cliente</button>
+                    </div>
+                </header>
+
+                <form id="clientForm" class="client-form hidden" autocomplete="off">
+                    <div class="client-form-header">
+                        <h4 id="clientFormTitle">Nuevo cliente</h4>
+                        <button type="button" class="client-form-close" id="cancelClientForm" aria-label="Cerrar formulario">&times;</button>
+                    </div>
+                    <div class="client-form-grid">
+                        <label class="client-form-field">
+                            <span>Nombre completo</span>
+                            <input type="text" name="name" placeholder="Ej. Distribuidora El Roble" required />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Correo electrónico</span>
+                            <input type="email" name="email" placeholder="contacto@empresa.com" />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Teléfono</span>
+                            <input type="tel" name="phone" placeholder="+506 8888-8888" />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Empresa</span>
+                            <input type="text" name="company" placeholder="Nombre de la empresa" />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Estado</span>
+                            <select name="status" required>
+                                <option value="Activo" selected>Activo</option>
+                                <option value="Inactivo">Inactivo</option>
+                                <option value="Prospecto">Prospecto</option>
+                            </select>
+                        </label>
+                        <label class="client-form-field wide">
+                            <span>Notas</span>
+                            <textarea name="notes" rows="2" placeholder="Comentarios adicionales"></textarea>
+                        </label>
+                    </div>
+                    <div class="client-form-actions">
+                        <button type="submit" class="client-form-submit" id="clientFormSubmit">Guardar cliente</button>
+                    </div>
+                    <p class="client-form-feedback" role="status" data-feedback="client-form"></p>
+                </form>
+
+                <div class="clients-table-wrapper">
+                    <table class="clients-table">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Contacto</th>
+                                <th>Empresa</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsTableBody">
+                            <tr><td colspan="5" style="text-align: center;">No hay clientes registrados</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="inventory" aria-label="Control de inventario">
+                <header class="inventory-header">
+                    <div>
+                        <h3 class="section-subtitle">Inventario</h3>
+                        <p class="inventory-hint">Ajusta existencias y consulta los movimientos recientes</p>
+                    </div>
+                    <button class="inventory-toggle-button" type="button" id="toggleInventoryForm">Registrar ajuste</button>
+                </header>
+
+                <form id="inventoryAdjustForm" class="inventory-form hidden" autocomplete="off">
+                    <div class="inventory-form-grid">
+                        <label class="inventory-form-field">
+                            <span>Producto</span>
+                            <select name="productId" id="inventoryProductSelect" required>
+                                <option value="" disabled selected>Selecciona un producto</option>
+                            </select>
+                        </label>
+                        <label class="inventory-form-field">
+                            <span>Tipo de ajuste</span>
+                            <select name="type" id="inventoryType" required>
+                                <option value="entrada" selected>Entrada</option>
+                                <option value="salida">Salida</option>
+                                <option value="ajuste">Ajuste manual</option>
+                            </select>
+                        </label>
+                        <label class="inventory-form-field">
+                            <span>Cantidad</span>
+                            <input type="number" name="quantity" id="inventoryQuantity" min="1" step="1" placeholder="0" required />
+                        </label>
+                        <label class="inventory-form-field wide">
+                            <span>Motivo</span>
+                            <textarea name="reason" rows="2" placeholder="Ej. Reposición de proveedor"></textarea>
+                        </label>
+                    </div>
+                    <div class="inventory-form-actions">
+                        <button type="submit" class="inventory-form-submit">Guardar ajuste</button>
+                        <button type="button" class="inventory-form-cancel" id="cancelInventoryForm">Cancelar</button>
+                    </div>
+                    <p class="inventory-form-feedback" role="status" data-feedback="inventory-adjust"></p>
+                </form>
+
+                <div class="inventory-table-wrapper">
+                    <table class="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Stock</th>
+                                <th>Estado</th>
+                                <th>Ajustes rápidos</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTableBody">
+                            <tr><td colspan="5" style="text-align: center;">No hay productos registrados</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <section class="inventory-history" aria-label="Historial de inventario">
+                    <header class="inventory-history-header">
+                        <h4>Historial de movimientos</h4>
+                        <span class="inventory-history-hint">Se registran los últimos ajustes realizados</span>
+                    </header>
+                    <div class="inventory-history-table-wrapper">
+                        <table class="inventory-history-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Producto</th>
+                                    <th>Tipo</th>
+                                    <th>Cantidad</th>
+                                    <th>Motivo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryHistoryTable">
+                                <tr><td colspan="5" style="text-align: center;">No hay movimientos registrados</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="settings" aria-label="Configuración de la empresa">
+                <header class="settings-header">
+                    <div>
+                        <h3 class="section-subtitle">Configuración</h3>
+                        <p class="settings-hint">Personaliza la información de tu empresa y la apariencia del panel</p>
+                    </div>
+                </header>
+
+                <form id="settingsForm" class="settings-form" autocomplete="off">
+                    <div class="settings-form-grid">
+                        <label class="settings-form-field">
+                            <span>Nombre de la empresa</span>
+                            <input type="text" name="companyName" placeholder="Mi empresa" required />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Correo de contacto</span>
+                            <input type="email" name="companyEmail" placeholder="ventas@empresa.com" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Teléfono</span>
+                            <input type="tel" name="companyPhone" placeholder="+506 0000-0000" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Dirección</span>
+                            <input type="text" name="companyAddress" placeholder="Ubicación de la empresa" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Lema o mensaje</span>
+                            <input type="text" name="tagline" placeholder="Mensaje que se mostrará en el panel" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Color principal</span>
+                            <input type="color" name="themeColor" id="themeColor" value="#6366f1" />
+                        </label>
+                        <label class="settings-form-field wide">
+                            <span>Logo o imagen</span>
+                            <input type="url" name="logoUrl" placeholder="https://mi-logo.com/logo.png" />
+                        </label>
+                    </div>
+                    <div class="settings-form-actions">
+                        <button type="submit" class="settings-form-submit">Guardar configuración</button>
+                    </div>
+                    <p class="settings-form-feedback" role="status" data-feedback="settings"></p>
+                </form>
+
+                <section class="settings-preview" aria-label="Resumen de configuración">
+                    <h4 class="settings-preview-title">Vista previa</h4>
+                    <div class="settings-preview-card">
+                        <div class="settings-preview-logo" data-settings-preview="logo">CD</div>
+                        <div class="settings-preview-info">
+                            <strong data-settings-preview="name">Catálogo Digital</strong>
+                            <span data-settings-preview="tagline">Administra tu negocio en un solo lugar</span>
+                            <span data-settings-preview="contact">ventas@empresa.com · +506 0000-0000</span>
+                        </div>
+                    </div>
+                </section>
             </section>
         </section>
     </main>
