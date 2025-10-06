@@ -36,6 +36,23 @@
             <input type="color" id="bgColor2">
         </div>
     </div>
+
+    <div class="settings-card">
+        <h3>Enlace público del catálogo</h3>
+        <div class="form-group">
+            <label class="form-label" for="settingsPublicSlug">Identificador de catálogo</label>
+            <input type="text" class="form-input" id="settingsPublicSlug" placeholder="mi-negocio">
+            <p class="form-helper">Solo letras, números y guiones. Debe ser único para tu negocio.</p>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="settingsPublicUrl">Comparte este enlace</label>
+            <div class="share-link">
+                <input type="text" class="form-input" id="settingsPublicUrl" readonly>
+                <button type="button" class="btn-copy-link" id="copyPublicLinkBtn">Copiar</button>
+            </div>
+            <p class="form-helper" id="settingsPublicLinkHelper">Agrega un identificador para generar un enlace único de tu catálogo.</p>
+        </div>
+    </div>
 </div>
 
 <div class="settings-actions">

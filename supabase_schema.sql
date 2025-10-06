@@ -75,6 +75,7 @@ create table public.business_settings (
     primary_color text default '#2563eb',
     gradient_start text default '#667eea',
     gradient_end text default '#764ba2',
+    public_slug text unique,
     created_at timestamptz default now(),
     updated_at timestamptz default now()
 );

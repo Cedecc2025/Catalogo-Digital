@@ -2,14 +2,18 @@ import { state, setAdminMode, setUser } from '../../scripts/state.js';
 import * as catalogModule from '../catalog/catalog.js';
 
 let callbacks = { onLoginRequest: null };
+const publicContext = { slug: null, userId: null };
 
 export async function initPublicView({ onLoginRequest, supabase }) {
     callbacks.onLoginRequest = onLoginRequest;
+    callbacks.supabase = supabase;
+
+    resolvePublicContext();
+
     setAdminMode(false);
     setUser(null);
 
     state.appData.cart = [];
-    callbacks.supabase = supabase;
 
     const loginBtn = document.getElementById('adminLoginBtn');
     loginBtn?.addEventListener('click', () => callbacks.onLoginRequest?.());
@@ -28,7 +32,12 @@ export async function initPublicView({ onLoginRequest, supabase }) {
         onNotify: showToast
     });
 
-    await loadPublicSettings();
+    const hasSpecificCatalog = Boolean(publicContext.slug || publicContext.userId);
+    const settingsLoaded = await loadPublicSettings();
+    if (!settingsLoaded && hasSpecificCatalog) {
+        showToast('El catálogo solicitado no está disponible. Verifica el enlace compartido.', 'error');
+    }
+
     await loadPublicProducts();
 
     catalogModule.render(state);
@@ -36,19 +45,55 @@ export async function initPublicView({ onLoginRequest, supabase }) {
     catalogModule.updateCartBadge(state);
 }
 
+function resolvePublicContext() {
+    publicContext.slug = null;
+    publicContext.userId = null;
+
+    try {
+        const url = new URL(window.location.href);
+        const slugParam = url.searchParams.get('store');
+        const userParam = url.searchParams.get('user');
+
+        if (slugParam) {
+            const normalized = normalizeSlug(slugParam);
+            if (normalized) {
+                publicContext.slug = normalized;
+            }
+        }
+
+        if (userParam) {
+            const trimmed = userParam.trim();
+            if (trimmed) {
+                publicContext.userId = trimmed;
+            }
+        }
+    } catch (error) {
+        console.error('No fue posible interpretar la URL pública del catálogo', error);
+    }
+}
+
 async function loadPublicProducts() {
     if (!callbacks.supabase) return;
 
     try {
-        const { data, error } = await callbacks.supabase
+        let query = callbacks.supabase
             .from('products')
             .select('*')
             .eq('is_public', true)
             .order('created_at', { ascending: false });
 
+        if (publicContext.userId) {
+            query = query.eq('user_id', publicContext.userId);
+        } else if (publicContext.slug) {
+            state.appData.products = [];
+            return;
+        }
+
+        const { data, error } = await query;
+
         if (error) throw error;
 
-    state.appData.products = (data ?? []).map(mapProductRow);
+        state.appData.products = (data ?? []).map(mapProductRow);
     } catch (error) {
         console.error('No fue posible cargar los productos públicos', error);
         showToast('No fue posible cargar los productos del catálogo.', 'error');
@@ -59,27 +104,53 @@ async function loadPublicProducts() {
 async function loadPublicSettings() {
     if (!callbacks.supabase) {
         applyPublicBranding();
-        return;
+        return true;
     }
 
     try {
-        const { data, error } = await callbacks.supabase
-            .from('business_settings')
-            .select('*')
-            .eq('is_public', true)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        let query = callbacks.supabase.from('business_settings').select('*');
+
+        if (publicContext.slug) {
+            query = query.eq('public_slug', publicContext.slug);
+        } else if (publicContext.userId) {
+            query = query.eq('user_id', publicContext.userId);
+        } else {
+            query = query.eq('is_public', true).order('updated_at', { ascending: false }).limit(1);
+        }
+
+        const { data, error } = await query.maybeSingle();
 
         if (error) throw error;
-        if (data) {
-            state.appData.settings = { ...state.appData.settings, ...mapSettingsRow(data) };
+
+        if (!data) {
+            if (publicContext.slug || publicContext.userId) {
+                state.appData.settings = {
+                    ...state.appData.settings,
+                    businessName: 'Catálogo no disponible',
+                    logo: '',
+                    whatsapp: '',
+                    email: '',
+                    publicSlug: ''
+                };
+            }
+            applyPublicBranding();
+            return false;
         }
+
+        publicContext.userId = data.user_id ?? publicContext.userId;
+        state.appData.settings = {
+            ...state.appData.settings,
+            ...mapSettingsRow(data)
+        };
     } catch (error) {
         console.error('No fue posible cargar la configuración pública', error);
+        showToast('No se pudo cargar la configuración del catálogo.', 'error');
+        applyPublicBranding();
+        return false;
     }
 
     applyPublicBranding();
+    return true;
 }
 
 function handleAddToCart(productId) {
@@ -90,7 +161,7 @@ function handleAddToCart(productId) {
     if (existing) {
         existing.quantity = Math.min(existing.quantity + 1, product.stock);
     } else {
-    state.appData.cart.push({ id: productId, quantity: 1 });
+        state.appData.cart.push({ id: productId, quantity: 1 });
     }
 
     catalogModule.renderCart(state);
@@ -131,7 +202,8 @@ function mapSettingsRow(row) {
             bgColor1: row.gradient_start ?? state.appData.settings.colors.bgColor1,
             bgColor2: row.gradient_end ?? state.appData.settings.colors.bgColor2
         },
-        isPublic: row.is_public ?? true
+        isPublic: row.is_public ?? true,
+        publicSlug: row.public_slug ?? ''
     };
 }
 
@@ -147,6 +219,8 @@ function applyPublicBranding() {
             tagline.textContent = `Haz tu pedido al ${settings.whatsapp}`;
         } else if (settings.email) {
             tagline.textContent = `Contáctanos en ${settings.email}`;
+        } else if (settings.businessName === 'Catálogo no disponible') {
+            tagline.textContent = 'El catálogo solicitado no está disponible en este momento.';
         } else {
             tagline.textContent = 'Explora nuestro catálogo y encuentra tu próximo favorito.';
         }
@@ -162,6 +236,9 @@ function applyPublicBranding() {
         logoImage.style.display = 'none';
         logoIcon.style.display = 'inline-block';
     }
+
+    const title = settings.businessName ? `${settings.businessName} · Catálogo` : 'Catálogo en línea';
+    document.title = title;
 }
 
 function showToast(message, type = 'info') {
@@ -188,4 +265,14 @@ function showToast(message, type = 'info') {
 
     toast.querySelector('.notification-close')?.addEventListener('click', close);
     setTimeout(close, 4000);
+}
+
+function normalizeSlug(value = '') {
+    return value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-{2,}/g, '-')
+        .replace(/^-+|-+$/g, '');
 }

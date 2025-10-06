@@ -49,7 +49,9 @@ export async function initApp({ user, onLogout }) {
         onExport: exportData,
         onImport: importData,
         onFactoryReset: factoryReset,
-        onColorChange: handleColorChange
+        onColorChange: handleColorChange,
+        onNotify: showToast,
+        publicBaseUrl: getPublicCatalogBaseUrl()
     });
 
     renderApp();
@@ -195,6 +197,7 @@ function mapBusinessSettings(row) {
         whatsapp: row.whatsapp ?? '',
         email: row.email ?? '',
         isPublic: row.is_public ?? state.appData.settings.isPublic,
+        publicSlug: row.public_slug ?? state.appData.settings.publicSlug,
         colors: {
             primary: row.primary_color ?? state.appData.settings.colors.primary,
             bgColor1: row.gradient_start ?? state.appData.settings.colors.bgColor1,
@@ -626,7 +629,8 @@ function toBusinessSettingsPayload(settings) {
         is_public: settings.isPublic ?? true,
         primary_color: settings.colors.primary || null,
         gradient_start: settings.colors.bgColor1 || null,
-        gradient_end: settings.colors.bgColor2 || null
+        gradient_end: settings.colors.bgColor2 || null,
+        public_slug: settings.publicSlug ? settings.publicSlug : null
     };
 }
 
@@ -835,6 +839,11 @@ function renderApp() {
     inventoryModule.render(state);
     chatbotModule.render(state);
     settingsModule.render(state);
+}
+
+function getPublicCatalogBaseUrl() {
+    const { origin, pathname } = window.location;
+    return `${origin}${pathname.split('?')[0].split('#')[0]}`;
 }
 
 function applySettingsToUI() {

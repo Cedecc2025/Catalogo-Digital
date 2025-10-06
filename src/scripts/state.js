@@ -6,6 +6,7 @@ export const state = {
             email: '',
             password: '',
             logo: '',
+            publicSlug: '',
             isPublic: true,
             colors: {
                 primary: '#2563eb',

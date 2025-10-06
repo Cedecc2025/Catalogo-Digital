@@ -28,6 +28,46 @@
     margin-bottom: 12px;
 }
 
+.form-helper {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(15, 23, 42, 0.6);
+}
+
+.share-link {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.share-link .form-input {
+    flex: 1;
+    margin: 0;
+}
+
+.btn-copy-link {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 0 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.btn-copy-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
+}
+
+.btn-copy-link:active {
+    transform: translateY(0);
+}
+
 .settings-actions {
     display: flex;
     gap: 12px;
