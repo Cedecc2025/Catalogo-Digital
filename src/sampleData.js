@@ -312,7 +312,7 @@ export function getInitialDashboardData() {
             tagline: 'Administra tu negocio en un solo lugar',
             themeColor: '#6366f1',
             logoUrl: '',
-            portalBaseUrl: 'client-portal.html'
+            portalBaseUrl: 'https://catalogodigital.cr/client-portal.html?portal={{slug}}'
         },
         portals: [
             {

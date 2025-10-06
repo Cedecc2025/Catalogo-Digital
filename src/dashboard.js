@@ -142,12 +142,37 @@ function buildPortalLink(slug) {
 
     const baseSetting = currentData?.settings?.portalBaseUrl?.trim();
     if (baseSetting) {
+        const slugTokenDetector = /{{\s*slug\s*}}|{\s*slug\s*}/i;
+        const encodedSlug = encodeURIComponent(slug);
+
+        if (slugTokenDetector.test(baseSetting)) {
+            const slugTokenReplacer = /{{\s*slug\s*}}|{\s*slug\s*}/gi;
+            const templateFilled = baseSetting.replace(slugTokenReplacer, encodedSlug);
+
+            try {
+                return new URL(templateFilled).toString();
+            } catch (error) {
+                try {
+                    return new URL(templateFilled, window.location.origin).toString();
+                } catch (innerError) {
+                    console.warn('No se pudo interpretar la URL completa configurada para portales.', innerError);
+                    return templateFilled;
+                }
+            }
+        }
+
         try {
             const url = new URL(baseSetting, window.location.origin);
             url.searchParams.set('portal', slug);
             return url.toString();
         } catch (error) {
             console.warn('No se pudo interpretar la URL base configurada para portales.', error);
+
+            if (/^https?:\/\//i.test(baseSetting)) {
+                const hasQuery = baseSetting.includes('?');
+                const separator = hasQuery ? '&' : '?';
+                return `${baseSetting}${separator}portal=${encodedSlug}`;
+            }
         }
     }
 
