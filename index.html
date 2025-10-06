@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Catálogo Digital - Acceso</title>
+    <title>Catálogo Digital</title>
     <link rel="stylesheet" href="src/styles.css" />
 </head>
 <body>
     <main class="page">
-        <section class="auth-card">
+        <section class="auth-card" data-section="auth">
             <header class="auth-header">
                 <h1 class="auth-title">Catálogo Digital</h1>
                 <p class="auth-subtitle">Inicia sesión o crea una cuenta para continuar</p>
@@ -43,6 +43,64 @@
                 <button class="form-submit" type="submit">Crear cuenta</button>
                 <p class="form-feedback" role="status" data-feedback-for="register"></p>
             </form>
+        </section>
+
+        <section class="dashboard hidden" data-section="dashboard">
+            <header class="dashboard-header">
+                <div>
+                    <h2 class="dashboard-title">Panel de Control</h2>
+                    <p class="dashboard-subtitle">Resumen actualizado del estado de tu negocio</p>
+                </div>
+                <div class="dashboard-actions">
+                    <span class="user-pill" data-user-email>Invitado</span>
+                    <button class="logout-button" type="button" id="logoutButton">Cerrar sesión</button>
+                </div>
+            </header>
+
+            <section class="stats-grid" aria-label="Indicadores principales">
+                <article class="stat-card">
+                    <h3 class="stat-label">Ventas Totales</h3>
+                    <p class="stat-value" id="statTotalSales">₡0</p>
+                    <p class="stat-hint">Últimos 30 días</p>
+                </article>
+                <article class="stat-card gradient-2">
+                    <h3 class="stat-label">Clientes</h3>
+                    <p class="stat-value" id="statTotalClients">0</p>
+                    <p class="stat-hint">Activos en tu catálogo</p>
+                </article>
+                <article class="stat-card gradient-3">
+                    <h3 class="stat-label">Productos</h3>
+                    <p class="stat-value" id="statTotalProducts">0</p>
+                    <p class="stat-hint">Inventario disponible</p>
+                </article>
+                <article class="stat-card gradient-4">
+                    <h3 class="stat-label">Pedidos Hoy</h3>
+                    <p class="stat-value" id="statTodayOrders">0</p>
+                    <p class="stat-hint">Actualizado al momento</p>
+                </article>
+            </section>
+
+            <section class="dashboard-table" aria-label="Últimas ventas">
+                <header class="table-header">
+                    <h3 class="section-subtitle">Últimas Ventas</h3>
+                    <span class="table-hint">Se muestran los últimos 5 movimientos registrados</span>
+                </header>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentSalesTable">
+                            <tr><td colspan="4" style="text-align: center;">No hay ventas</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </section>
     </main>
 
