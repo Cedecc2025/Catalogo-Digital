@@ -60,6 +60,7 @@
             <nav class="dashboard-tabs" aria-label="Secciones del panel">
                 <button class="dashboard-tab active" type="button" data-dashboard-tab="overview">Resumen</button>
                 <button class="dashboard-tab" type="button" data-dashboard-tab="catalog">Catálogo</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="sales">Ventas</button>
             </nav>
 
             <section class="dashboard-panel" data-dashboard-panel="overview">
@@ -174,6 +175,90 @@
                         </thead>
                         <tbody id="catalogProductsTable">
                             <tr><td colspan="6" style="text-align: center;">No hay productos en el catálogo</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="sales" aria-label="Gestión de ventas">
+                <header class="sales-header">
+                    <div>
+                        <h3 class="section-subtitle">Módulo de ventas</h3>
+                        <p class="sales-hint">Registra nuevas ventas y consulta el historial de movimientos</p>
+                    </div>
+                    <div class="sales-actions">
+                        <div class="sales-indicator" role="status">
+                            <span class="sales-indicator-label">Ventas registradas</span>
+                            <strong id="salesTotalCount">0</strong>
+                        </div>
+                        <div class="sales-indicator" role="status">
+                            <span class="sales-indicator-label">Monto total</span>
+                            <strong id="salesTotalAmount">₡0</strong>
+                        </div>
+                        <button class="sales-add-button" type="button" id="addSaleButton">Registrar venta</button>
+                    </div>
+                </header>
+
+                <form id="addSaleForm" class="sales-form hidden" autocomplete="off">
+                    <div class="sales-form-grid">
+                        <label class="sales-form-field">
+                            <span>Cliente</span>
+                            <input type="text" name="client" placeholder="Nombre del cliente" required />
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Producto</span>
+                            <select name="productId" id="saleProductSelect" required>
+                                <option value="" disabled selected>Selecciona un producto</option>
+                            </select>
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Cantidad</span>
+                            <input type="number" name="quantity" id="saleQuantity" min="1" step="1" value="1" required />
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Precio unitario</span>
+                            <input type="number" name="unitPrice" id="saleUnitPrice" min="0" step="0.01" placeholder="₡0.00" required />
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Método de pago</span>
+                            <select name="paymentMethod" id="salePaymentMethod" required>
+                                <option value="Efectivo" selected>Efectivo</option>
+                                <option value="Tarjeta">Tarjeta</option>
+                                <option value="Transferencia">Transferencia</option>
+                                <option value="Sinpe">Sinpe</option>
+                            </select>
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Notas</span>
+                            <textarea name="notes" id="saleNotes" rows="1" placeholder="Observaciones adicionales"></textarea>
+                        </label>
+                    </div>
+                    <div class="sales-form-summary">
+                        <span>Total estimado</span>
+                        <strong id="saleTotalPreview">₡0</strong>
+                    </div>
+                    <div class="sales-form-actions">
+                        <button type="submit" class="sales-form-submit">Guardar venta</button>
+                        <button type="button" class="sales-form-cancel" id="cancelAddSale">Cancelar</button>
+                    </div>
+                    <p class="sales-form-feedback" role="status" data-feedback="add-sale"></p>
+                </form>
+
+                <div class="sales-table-wrapper">
+                    <table class="sales-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Total</th>
+                                <th>Método</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesHistoryTable">
+                            <tr><td colspan="7" style="text-align: center;">No hay ventas registradas</td></tr>
                         </tbody>
                     </table>
                 </div>

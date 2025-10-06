@@ -16,7 +16,18 @@ const DASHBOARD_SELECTORS = {
     addProductButton: '#addProductButton',
     addProductForm: '#addProductForm',
     addProductCancel: '#cancelAddProduct',
-    addProductFeedback: '[data-feedback="add-product"]'
+    addProductFeedback: '[data-feedback="add-product"]',
+    salesTotalCount: '#salesTotalCount',
+    salesTotalAmount: '#salesTotalAmount',
+    addSaleButton: '#addSaleButton',
+    addSaleForm: '#addSaleForm',
+    addSaleCancel: '#cancelAddSale',
+    addSaleFeedback: '[data-feedback="add-sale"]',
+    saleProductSelect: '#saleProductSelect',
+    saleQuantityInput: '#saleQuantity',
+    saleUnitPriceInput: '#saleUnitPrice',
+    saleTotalPreview: '#saleTotalPreview',
+    salesHistoryTable: '#salesHistoryTable'
 };
 
 const sampleDashboardData = {
@@ -24,42 +35,90 @@ const sampleDashboardData = {
         {
             id: 101,
             date: '2024-08-18T14:05:00Z',
-            total: 185000,
+            total: 102000,
             status: 'Completado',
             statusClass: 'success',
-            client: { name: 'Distribuidora El Roble' }
+            paymentMethod: 'Transferencia',
+            client: { name: 'Distribuidora El Roble' },
+            items: [
+                {
+                    productId: 11,
+                    productName: 'Paquete Gourmet Café',
+                    quantity: 12,
+                    unitPrice: 8500
+                }
+            ],
+            notes: 'Entrega programada para mañana a primera hora.'
         },
         {
             id: 102,
             date: '2024-08-18T10:32:00Z',
-            total: 98250,
+            total: 47600,
             status: 'Pendiente',
             statusClass: 'pending',
-            client: { name: 'Tienda La Esquina' }
+            paymentMethod: 'Tarjeta',
+            client: { name: 'Tienda La Esquina' },
+            items: [
+                {
+                    productId: 13,
+                    productName: 'Kit de Salsas Premium',
+                    quantity: 4,
+                    unitPrice: 11900
+                }
+            ],
+            notes: 'Esperando confirmación de pago.'
         },
         {
             id: 103,
             date: '2024-08-17T17:41:00Z',
-            total: 214500,
+            total: 117600,
             status: 'Completado',
             statusClass: 'success',
-            client: { name: 'Mercado Central' }
+            paymentMethod: 'Transferencia',
+            client: { name: 'Mercado Central' },
+            items: [
+                {
+                    productId: 14,
+                    productName: 'Cesta de Snacks Saludables',
+                    quantity: 12,
+                    unitPrice: 9800
+                }
+            ]
         },
         {
             id: 104,
             date: '2024-08-16T12:15:00Z',
-            total: 56200,
+            total: 56700,
             status: 'Cancelado',
             statusClass: 'canceled',
-            client: { name: 'Mini Súper Lomas' }
+            paymentMethod: 'Efectivo',
+            client: { name: 'Mini Súper Lomas' },
+            items: [
+                {
+                    productId: 17,
+                    productName: 'Licores Artesanales',
+                    quantity: 3,
+                    unitPrice: 18900
+                }
+            ],
+            notes: 'Pedido cancelado por el cliente.'
         },
         {
             id: 105,
             date: '2024-08-15T09:22:00Z',
-            total: 125000,
+            total: 94000,
             status: 'Completado',
             statusClass: 'success',
-            client: { name: 'Boutique Azul' }
+            paymentMethod: 'Sinpe',
+            client: { name: 'Boutique Azul' },
+            items: [
+                {
+                    productId: 16,
+                    productName: 'Vinos de la Casa',
+                    quantity: 4,
+                    unitPrice: 23500
+                }
+            ]
         }
     ],
     clients: [
@@ -150,6 +209,7 @@ let currentData = cloneData(sampleDashboardData);
 let supabaseClient = null;
 let activePanel = 'overview';
 let isAddProductFormVisible = false;
+let isAddSaleFormVisible = false;
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -183,7 +243,8 @@ function formatCurrency(amount) {
     return new Intl.NumberFormat('es-CR', {
         style: 'currency',
         currency: 'CRC',
-        maximumFractionDigits: 0
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
     }).format(amount);
 }
 
@@ -283,6 +344,264 @@ function renderProductCatalog(products) {
         .join('');
 }
 
+function renderSalesIndicators(sales) {
+    const totalSales = sales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
+    setText(DASHBOARD_SELECTORS.salesTotalCount, String(sales.length));
+    setText(DASHBOARD_SELECTORS.salesTotalAmount, formatCurrency(totalSales));
+}
+
+function summarizeSaleProducts(items = []) {
+    if (!items.length) {
+        return {
+            label: '—',
+            quantity: '—'
+        };
+    }
+
+    const totalQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const primary = items[0];
+    const additionalCount = Math.max(0, items.length - 1);
+    const productLabel = `${escapeHtml(primary.productName ?? 'Producto')}${additionalCount ? ` +${additionalCount} más` : ''}`;
+    const quantityLabel = totalQuantity
+        ? `${totalQuantity} ${totalQuantity === 1 ? 'unidad' : 'unidades'}`
+        : '—';
+
+    return {
+        label: productLabel,
+        quantity: quantityLabel
+    };
+}
+
+function renderSalesHistoryTable(sales) {
+    const tableBody = getElement(DASHBOARD_SELECTORS.salesHistoryTable);
+    if (!tableBody) return;
+
+    if (!sales.length) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No hay ventas registradas</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = sales
+        .map((sale) => {
+            const clientName = escapeHtml(sale.client?.name ?? 'Cliente');
+            const productsSummary = summarizeSaleProducts(Array.isArray(sale.items) ? sale.items : []);
+            const paymentMethod = escapeHtml(sale.paymentMethod ?? '—');
+            const statusLabel = escapeHtml(sale.status ?? '—');
+
+            return `
+                <tr>
+                    <td>${formatDate(sale.date)}</td>
+                    <td>${clientName}</td>
+                    <td>${productsSummary.label}</td>
+                    <td>${productsSummary.quantity}</td>
+                    <td>${formatCurrency(sale.total ?? 0)}</td>
+                    <td>${paymentMethod}</td>
+                    <td><span class="badge ${sale.statusClass ?? ''}">${statusLabel}</span></td>
+                </tr>`;
+        })
+        .join('');
+}
+
+function populateSaleProductOptions(products) {
+    const select = getElement(DASHBOARD_SELECTORS.saleProductSelect);
+    if (!select) return;
+
+    const previousValue = select.value;
+    const hasPrevious = products.some((product) => String(product.id) === previousValue);
+    const placeholderSelected = !previousValue || !hasPrevious;
+
+    const optionsMarkup = products
+        .map(
+            (product) => `
+                <option value="${escapeHtml(String(product.id))}">${escapeHtml(product.name ?? 'Producto')}</option>`
+        )
+        .join('');
+
+    select.innerHTML = `
+        <option value="" disabled${placeholderSelected ? ' selected' : ''}>Selecciona un producto</option>
+        ${optionsMarkup}`;
+
+    if (!placeholderSelected) {
+        select.value = previousValue;
+    }
+}
+
+function updateSaleTotalPreview() {
+    const preview = getElement(DASHBOARD_SELECTORS.saleTotalPreview);
+    if (!preview) return;
+
+    const quantityInput = getElement(DASHBOARD_SELECTORS.saleQuantityInput);
+    const priceInput = getElement(DASHBOARD_SELECTORS.saleUnitPriceInput);
+
+    const quantity = Number(quantityInput?.value ?? 0);
+    const unitPrice = Number(priceInput?.value ?? 0);
+
+    if (Number.isNaN(quantity) || Number.isNaN(unitPrice)) {
+        preview.textContent = formatCurrency(0);
+        return;
+    }
+
+    const total = Number((Math.max(0, quantity) * Math.max(0, unitPrice)).toFixed(2));
+    preview.textContent = formatCurrency(total);
+}
+
+function handleSaleProductChange() {
+    const select = getElement(DASHBOARD_SELECTORS.saleProductSelect);
+    const priceInput = getElement(DASHBOARD_SELECTORS.saleUnitPriceInput);
+    if (!select || !priceInput) return;
+
+    const product = currentData.products.find((item) => String(item.id) === select.value);
+    if (product) {
+        const basePrice = Number(product.price ?? 0);
+        priceInput.value = Number.isFinite(basePrice) ? basePrice.toFixed(2) : '';
+    }
+
+    updateSaleTotalPreview();
+}
+
+function toggleAddSaleForm(show) {
+    const form = getElement(DASHBOARD_SELECTORS.addSaleForm);
+    const button = getElement(DASHBOARD_SELECTORS.addSaleButton);
+
+    isAddSaleFormVisible = Boolean(show);
+
+    if (form) {
+        form.classList.toggle('hidden', !isAddSaleFormVisible);
+    }
+
+    if (button) {
+        button.setAttribute('aria-expanded', String(isAddSaleFormVisible));
+        button.textContent = isAddSaleFormVisible ? 'Cerrar formulario' : 'Registrar venta';
+    }
+
+    populateSaleProductOptions(currentData.products);
+
+    if (isAddSaleFormVisible) {
+        form?.reset();
+        const quantityInput = getElement(DASHBOARD_SELECTORS.saleQuantityInput);
+        if (quantityInput) {
+            quantityInput.value = '1';
+        }
+        handleSaleProductChange();
+        updateSaleTotalPreview();
+        form?.querySelector('input[name="client"]')?.focus();
+    } else {
+        form?.reset();
+        const priceInput = getElement(DASHBOARD_SELECTORS.saleUnitPriceInput);
+        if (priceInput) {
+            priceInput.value = '';
+        }
+        updateSaleTotalPreview();
+        setFeedback(DASHBOARD_SELECTORS.addSaleFeedback);
+    }
+}
+
+function getStatusFromStock(stock) {
+    if (stock <= 0) {
+        return { status: 'Agotado', statusClass: 'danger' };
+    }
+    if (stock <= 5) {
+        return { status: 'Bajo stock', statusClass: 'warning' };
+    }
+    if (stock <= 10) {
+        return { status: 'Requiere reposición', statusClass: 'alert' };
+    }
+    return { status: 'Disponible', statusClass: 'success' };
+}
+
+function ensureClientExists(name) {
+    if (!name) return;
+    const normalized = name.toLowerCase();
+    const exists = currentData.clients.some((client) => client.name?.toLowerCase() === normalized);
+    if (!exists) {
+        currentData.clients = [
+            { id: Date.now(), name },
+            ...currentData.clients
+        ];
+    }
+}
+
+function handleAddSaleSubmit(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const clientName = String(formData.get('client') || '').trim();
+    const productId = String(formData.get('productId') || '').trim();
+    const quantityValue = Number(formData.get('quantity'));
+    const unitPriceValue = Number(formData.get('unitPrice'));
+    const paymentMethod = String(formData.get('paymentMethod') || '').trim() || 'Efectivo';
+    const notes = String(formData.get('notes') || '').trim();
+
+    if (!clientName || !productId || Number.isNaN(quantityValue) || Number.isNaN(unitPriceValue)) {
+        setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Completa todos los campos antes de guardar.', 'error');
+        return;
+    }
+
+    const product = currentData.products.find((item) => String(item.id) === productId);
+    if (!product) {
+        setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Selecciona un producto válido.', 'error');
+        return;
+    }
+
+    const normalizedQuantity = Math.max(1, Math.trunc(quantityValue));
+    const normalizedUnitPrice = Number(Math.max(0, unitPriceValue).toFixed(2));
+    const saleTotal = Number((normalizedQuantity * normalizedUnitPrice).toFixed(2));
+
+    const newSale = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        total: saleTotal,
+        status: 'Completado',
+        statusClass: 'success',
+        paymentMethod,
+        client: { name: clientName },
+        items: [
+            {
+                productId: product.id,
+                productName: product.name,
+                quantity: normalizedQuantity,
+                unitPrice: normalizedUnitPrice
+            }
+        ],
+        notes: notes || undefined
+    };
+
+    currentData.products = currentData.products.map((item) => {
+        if (String(item.id) !== productId) return item;
+        const currentStock = Number(item.stock ?? 0);
+        const updatedStock = Math.max(0, currentStock - normalizedQuantity);
+        const statusInfo = getStatusFromStock(updatedStock);
+        return {
+            ...item,
+            stock: updatedStock,
+            status: statusInfo.status,
+            statusClass: statusInfo.statusClass
+        };
+    });
+
+    ensureClientExists(clientName);
+
+    currentData.sales = [newSale, ...currentData.sales];
+
+    renderDashboard(currentData);
+
+    form.reset();
+    const quantityInput = getElement(DASHBOARD_SELECTORS.saleQuantityInput);
+    if (quantityInput) {
+        quantityInput.value = '1';
+    }
+    handleSaleProductChange();
+    updateSaleTotalPreview();
+
+    setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Venta registrada correctamente.', 'success');
+
+    setTimeout(() => {
+        toggleAddSaleForm(false);
+    }, 900);
+}
+
 function toggleAddProductForm(show) {
     const form = getElement(DASHBOARD_SELECTORS.addProductForm);
     const button = getElement(DASHBOARD_SELECTORS.addProductButton);
@@ -375,6 +694,14 @@ function setActivePanel(panel) {
         const shouldShow = panelElement.dataset.dashboardPanel === target;
         panelElement.classList.toggle('hidden', !shouldShow);
     });
+
+    if (target !== 'catalog') {
+        toggleAddProductForm(false);
+    }
+
+    if (target !== 'sales') {
+        toggleAddSaleForm(false);
+    }
 }
 
 function toggleSections(showDashboard) {
@@ -434,6 +761,26 @@ export function initDashboard({ supabase }) {
 
     addProductForm?.addEventListener('submit', handleAddProductSubmit);
 
+    const addSaleButton = getElement(DASHBOARD_SELECTORS.addSaleButton);
+    const addSaleForm = getElement(DASHBOARD_SELECTORS.addSaleForm);
+    const addSaleCancel = getElement(DASHBOARD_SELECTORS.addSaleCancel);
+    const saleProductSelect = getElement(DASHBOARD_SELECTORS.saleProductSelect);
+    const saleQuantityInput = getElement(DASHBOARD_SELECTORS.saleQuantityInput);
+    const saleUnitPriceInput = getElement(DASHBOARD_SELECTORS.saleUnitPriceInput);
+
+    addSaleButton?.addEventListener('click', () => {
+        toggleAddSaleForm(!isAddSaleFormVisible);
+    });
+
+    addSaleCancel?.addEventListener('click', () => {
+        toggleAddSaleForm(false);
+    });
+
+    addSaleForm?.addEventListener('submit', handleAddSaleSubmit);
+    saleProductSelect?.addEventListener('change', handleSaleProductChange);
+    saleQuantityInput?.addEventListener('input', updateSaleTotalPreview);
+    saleUnitPriceInput?.addEventListener('input', updateSaleTotalPreview);
+
     logoutButton?.addEventListener('click', async () => {
         if (!supabaseClient) return;
         const button = logoutButton;
@@ -459,6 +806,10 @@ export function renderDashboard(data = currentData) {
     renderStats(currentData);
     renderRecentSalesTable(currentData.sales);
     renderProductCatalog(currentData.products);
+    renderSalesIndicators(currentData.sales);
+    renderSalesHistoryTable(currentData.sales);
+    populateSaleProductOptions(currentData.products);
+    handleSaleProductChange();
 }
 
 export function showDashboard(session) {
@@ -475,6 +826,7 @@ export function showDashboard(session) {
 export function hideDashboard() {
     toggleSections(false);
     toggleAddProductForm(false);
+    toggleAddSaleForm(false);
 
     setText(DASHBOARD_SELECTORS.userEmail, 'Invitado');
     resetLogoutButton();
