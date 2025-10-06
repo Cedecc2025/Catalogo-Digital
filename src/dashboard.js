@@ -8,7 +8,11 @@ const DASHBOARD_SELECTORS = {
     totalProducts: '#statTotalProducts',
     todayOrders: '#statTodayOrders',
     salesTable: '#recentSalesTable',
-    logoutButton: '#logoutButton'
+    logoutButton: '#logoutButton',
+    dashboardTabs: '[data-dashboard-tab]',
+    dashboardPanels: '[data-dashboard-panel]',
+    catalogTable: '#catalogProductsTable',
+    catalogCounter: '#catalogProductsTotal'
 };
 
 const sampleDashboardData = {
@@ -63,13 +67,69 @@ const sampleDashboardData = {
         { id: 6, name: 'Tecnologías Rivera' }
     ],
     products: [
-        { id: 11, name: 'Paquete Gourmet Café' },
-        { id: 12, name: 'Caja de Tés Artesanales' },
-        { id: 13, name: 'Kit de Salsas Premium' },
-        { id: 14, name: 'Cesta de Snacks Saludables' },
-        { id: 15, name: 'Selección de Quesos Locales' },
-        { id: 16, name: 'Vinos de la Casa' },
-        { id: 17, name: 'Licores Artesanales' }
+        {
+            id: 11,
+            name: 'Paquete Gourmet Café',
+            category: 'Bebidas',
+            price: 8500,
+            stock: 24,
+            status: 'Disponible',
+            statusClass: 'success'
+        },
+        {
+            id: 12,
+            name: 'Caja de Tés Artesanales',
+            category: 'Bebidas',
+            price: 7200,
+            stock: 15,
+            status: 'Disponible',
+            statusClass: 'success'
+        },
+        {
+            id: 13,
+            name: 'Kit de Salsas Premium',
+            category: 'Gourmet',
+            price: 11900,
+            stock: 8,
+            status: 'Bajo stock',
+            statusClass: 'warning'
+        },
+        {
+            id: 14,
+            name: 'Cesta de Snacks Saludables',
+            category: 'Snacks',
+            price: 9800,
+            stock: 30,
+            status: 'Disponible',
+            statusClass: 'success'
+        },
+        {
+            id: 15,
+            name: 'Selección de Quesos Locales',
+            category: 'Lácteos',
+            price: 15900,
+            stock: 5,
+            status: 'Requiere reposición',
+            statusClass: 'alert'
+        },
+        {
+            id: 16,
+            name: 'Vinos de la Casa',
+            category: 'Bebidas',
+            price: 23500,
+            stock: 12,
+            status: 'Disponible',
+            statusClass: 'success'
+        },
+        {
+            id: 17,
+            name: 'Licores Artesanales',
+            category: 'Bebidas',
+            price: 18900,
+            stock: 0,
+            status: 'Agotado',
+            statusClass: 'danger'
+        }
     ]
 };
 
@@ -79,6 +139,7 @@ function cloneData(data) {
 
 let currentData = cloneData(sampleDashboardData);
 let supabaseClient = null;
+let activePanel = 'overview';
 
 function getElement(selector) {
     return document.querySelector(selector);
@@ -150,6 +211,55 @@ function renderRecentSalesTable(sales) {
         .join('');
 }
 
+function renderProductCatalog(products) {
+    const tableBody = getElement(DASHBOARD_SELECTORS.catalogTable);
+    const counter = getElement(DASHBOARD_SELECTORS.catalogCounter);
+
+    if (counter) {
+        const total = products.length;
+        counter.textContent = total === 1 ? '1 producto' : `${total} productos`;
+    }
+
+    if (!tableBody) return;
+
+    if (!products.length) {
+        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay productos en el catálogo</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = products
+        .map(
+            (product) => `
+                <tr>
+                    <td>${product.name ?? 'Producto'}</td>
+                    <td>${product.category ?? 'Sin categoría'}</td>
+                    <td>${formatCurrency(product.price ?? 0)}</td>
+                    <td>${typeof product.stock === 'number' ? `${product.stock} unidades` : '—'}</td>
+                    <td><span class="badge ${product.statusClass ?? ''}">${product.status ?? 'Sin estado'}</span></td>
+                </tr>`
+        )
+        .join('');
+}
+
+function setActivePanel(panel) {
+    const target = panel || 'overview';
+    const tabs = document.querySelectorAll(DASHBOARD_SELECTORS.dashboardTabs);
+    const panels = document.querySelectorAll(DASHBOARD_SELECTORS.dashboardPanels);
+
+    activePanel = target;
+
+    tabs.forEach((tab) => {
+        const isActive = tab.dataset.dashboardTab === target;
+        tab.classList.toggle('active', isActive);
+        tab.setAttribute('aria-pressed', String(isActive));
+    });
+
+    panels.forEach((panelElement) => {
+        const shouldShow = panelElement.dataset.dashboardPanel === target;
+        panelElement.classList.toggle('hidden', !shouldShow);
+    });
+}
+
 function toggleSections(showDashboard) {
     const dashboard = getElement(DASHBOARD_SELECTORS.section);
     const authSection = getElement(DASHBOARD_SELECTORS.authSection);
@@ -186,6 +296,13 @@ export function initDashboard({ supabase }) {
         logoutButton.dataset.defaultLabel = logoutButton.textContent;
     }
 
+    const tabs = document.querySelectorAll(DASHBOARD_SELECTORS.dashboardTabs);
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            setActivePanel(tab.dataset.dashboardTab);
+        });
+    });
+
     logoutButton?.addEventListener('click', async () => {
         if (!supabaseClient) return;
         const button = logoutButton;
@@ -202,6 +319,7 @@ export function initDashboard({ supabase }) {
     });
 
     renderDashboard();
+    setActivePanel(activePanel);
     hideDashboard();
 }
 
@@ -209,6 +327,7 @@ export function renderDashboard(data = currentData) {
     currentData = cloneData(data);
     renderStats(currentData);
     renderRecentSalesTable(currentData.sales);
+    renderProductCatalog(currentData.products);
 }
 
 export function showDashboard(session) {
@@ -219,6 +338,7 @@ export function showDashboard(session) {
     setText(DASHBOARD_SELECTORS.userEmail, userEmail);
 
     renderDashboard(currentData);
+    setActivePanel(activePanel);
 }
 
 export function hideDashboard() {
@@ -226,6 +346,8 @@ export function hideDashboard() {
 
     setText(DASHBOARD_SELECTORS.userEmail, 'Invitado');
     resetLogoutButton();
+    activePanel = 'overview';
+    setActivePanel(activePanel);
 }
 
 export function setDashboardData(data) {

@@ -49,7 +49,7 @@
             <header class="dashboard-header">
                 <div>
                     <h2 class="dashboard-title">Panel de Control</h2>
-                    <p class="dashboard-subtitle">Resumen actualizado del estado de tu negocio</p>
+                    <p class="dashboard-subtitle">Administra tu negocio y catálogo en un solo lugar</p>
                 </div>
                 <div class="dashboard-actions">
                     <span class="user-pill" data-user-email>Invitado</span>
@@ -57,46 +57,82 @@
                 </div>
             </header>
 
-            <section class="stats-grid" aria-label="Indicadores principales">
-                <article class="stat-card">
-                    <h3 class="stat-label">Ventas Totales</h3>
-                    <p class="stat-value" id="statTotalSales">₡0</p>
-                    <p class="stat-hint">Últimos 30 días</p>
-                </article>
-                <article class="stat-card gradient-2">
-                    <h3 class="stat-label">Clientes</h3>
-                    <p class="stat-value" id="statTotalClients">0</p>
-                    <p class="stat-hint">Activos en tu catálogo</p>
-                </article>
-                <article class="stat-card gradient-3">
-                    <h3 class="stat-label">Productos</h3>
-                    <p class="stat-value" id="statTotalProducts">0</p>
-                    <p class="stat-hint">Inventario disponible</p>
-                </article>
-                <article class="stat-card gradient-4">
-                    <h3 class="stat-label">Pedidos Hoy</h3>
-                    <p class="stat-value" id="statTodayOrders">0</p>
-                    <p class="stat-hint">Actualizado al momento</p>
-                </article>
+            <nav class="dashboard-tabs" aria-label="Secciones del panel">
+                <button class="dashboard-tab active" type="button" data-dashboard-tab="overview">Resumen</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="catalog">Catálogo</button>
+            </nav>
+
+            <section class="dashboard-panel" data-dashboard-panel="overview">
+                <section class="stats-grid" aria-label="Indicadores principales">
+                    <article class="stat-card">
+                        <h3 class="stat-label">Ventas Totales</h3>
+                        <p class="stat-value" id="statTotalSales">₡0</p>
+                        <p class="stat-hint">Últimos 30 días</p>
+                    </article>
+                    <article class="stat-card gradient-2">
+                        <h3 class="stat-label">Clientes</h3>
+                        <p class="stat-value" id="statTotalClients">0</p>
+                        <p class="stat-hint">Activos en tu catálogo</p>
+                    </article>
+                    <article class="stat-card gradient-3">
+                        <h3 class="stat-label">Productos</h3>
+                        <p class="stat-value" id="statTotalProducts">0</p>
+                        <p class="stat-hint">Inventario disponible</p>
+                    </article>
+                    <article class="stat-card gradient-4">
+                        <h3 class="stat-label">Pedidos Hoy</h3>
+                        <p class="stat-value" id="statTodayOrders">0</p>
+                        <p class="stat-hint">Actualizado al momento</p>
+                    </article>
+                </section>
+
+                <section class="dashboard-table" aria-label="Últimas ventas">
+                    <header class="table-header">
+                        <h3 class="section-subtitle">Últimas Ventas</h3>
+                        <span class="table-hint">Se muestran los últimos 5 movimientos registrados</span>
+                    </header>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Cliente</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentSalesTable">
+                                <tr><td colspan="4" style="text-align: center;">No hay ventas</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </section>
 
-            <section class="dashboard-table" aria-label="Últimas ventas">
-                <header class="table-header">
-                    <h3 class="section-subtitle">Últimas Ventas</h3>
-                    <span class="table-hint">Se muestran los últimos 5 movimientos registrados</span>
+            <section class="dashboard-panel hidden" data-dashboard-panel="catalog" aria-label="Catálogo de productos">
+                <header class="catalog-header">
+                    <div>
+                        <h3 class="section-subtitle">Catálogo de productos</h3>
+                        <p class="catalog-hint">Consulta la disponibilidad, precios y estado de tus productos</p>
+                    </div>
+                    <div class="catalog-meta">
+                        <span class="catalog-counter" id="catalogProductsTotal">0 productos</span>
+                    </div>
                 </header>
-                <div class="table-responsive">
-                    <table>
+
+                <div class="catalog-table-wrapper">
+                    <table class="catalog-table">
                         <thead>
                             <tr>
-                                <th>Fecha</th>
-                                <th>Cliente</th>
-                                <th>Total</th>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Precio</th>
+                                <th>Inventario</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
-                        <tbody id="recentSalesTable">
-                            <tr><td colspan="4" style="text-align: center;">No hay ventas</td></tr>
+                        <tbody id="catalogProductsTable">
+                            <tr><td colspan="5" style="text-align: center;">No hay productos en el catálogo</td></tr>
                         </tbody>
                     </table>
                 </div>
