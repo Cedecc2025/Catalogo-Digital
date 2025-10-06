@@ -2,7 +2,12 @@ import { state, setAdminMode, setUser } from '../../scripts/state.js';
 import * as catalogModule from '../catalog/catalog.js';
 
 let callbacks = { onLoginRequest: null };
-const publicContext = { slug: null, userId: null };
+const publicContext = {
+    slug: null,
+    userId: null,
+    slugCandidates: [],
+    settingsRow: null
+};
 
 export async function initPublicView({ onLoginRequest, supabase }) {
     callbacks.onLoginRequest = onLoginRequest;
@@ -48,6 +53,8 @@ export async function initPublicView({ onLoginRequest, supabase }) {
 function resolvePublicContext() {
     publicContext.slug = null;
     publicContext.userId = null;
+    publicContext.slugCandidates = [];
+    publicContext.settingsRow = null;
 
     try {
         const url = new URL(window.location.href);
@@ -55,10 +62,7 @@ function resolvePublicContext() {
         const userParam = url.searchParams.get('user');
 
         if (slugParam) {
-            const normalized = normalizeSlug(slugParam);
-            if (normalized) {
-                publicContext.slug = normalized;
-            }
+            registerSlugCandidates(slugParam);
         }
 
         if (userParam) {
@@ -70,6 +74,79 @@ function resolvePublicContext() {
     } catch (error) {
         console.error('No fue posible interpretar la URL pública del catálogo', error);
     }
+}
+
+async function fetchPublicBusinessSettings(columns = '*') {
+    if (!callbacks.supabase) return null;
+
+    const candidates = Array.from(new Set((publicContext.slugCandidates ?? []).filter((item) => Boolean(item))));
+
+    if (candidates.length > 0) {
+        for (const value of candidates) {
+            const { data, error } = await callbacks.supabase
+                .from('business_settings')
+                .select(columns)
+                .eq('is_public', true)
+                .eq('public_slug', value)
+                .maybeSingle();
+
+            if (error) throw error;
+            if (data) return data;
+        }
+
+        for (const value of candidates) {
+            const { data, error } = await callbacks.supabase
+                .from('business_settings')
+                .select(columns)
+                .eq('is_public', true)
+                .ilike('public_slug', value)
+                .maybeSingle();
+
+            if (error) throw error;
+            if (data) return data;
+        }
+
+        for (const value of candidates) {
+            const pattern = toFuzzyPattern(value);
+            if (!pattern) continue;
+
+            const { data, error } = await callbacks.supabase
+                .from('business_settings')
+                .select(columns)
+                .eq('is_public', true)
+                .ilike('public_slug', pattern)
+                .limit(1)
+                .maybeSingle();
+
+            if (error) throw error;
+            if (data) return data;
+        }
+
+        return null;
+    }
+
+    if (publicContext.userId) {
+        const { data, error } = await callbacks.supabase
+            .from('business_settings')
+            .select(columns)
+            .eq('is_public', true)
+            .eq('user_id', publicContext.userId)
+            .maybeSingle();
+
+        if (error) throw error;
+        return data ?? null;
+    }
+
+    const { data, error } = await callbacks.supabase
+        .from('business_settings')
+        .select(columns)
+        .eq('is_public', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data ?? null;
 }
 
 async function loadPublicProducts() {
@@ -108,18 +185,26 @@ async function loadPublicProducts() {
 }
 
 async function resolveCatalogOwnerFromSlug() {
-    if (!callbacks.supabase || !publicContext.slug) return null;
+    if (!callbacks.supabase || (publicContext.slugCandidates?.length ?? 0) === 0) return null;
+
+    if (publicContext.userId) {
+        return publicContext.userId;
+    }
+
+    if (publicContext.settingsRow && slugMatchesCandidates(publicContext.settingsRow.public_slug)) {
+        if (publicContext.settingsRow.user_id) {
+            publicContext.userId = publicContext.settingsRow.user_id;
+            return publicContext.userId;
+        }
+    }
 
     try {
-        const { data, error } = await callbacks.supabase
-            .from('business_settings')
-            .select('user_id')
-            .eq('public_slug', publicContext.slug)
-            .maybeSingle();
-
-        if (error) throw error;
-
-        return data?.user_id ?? null;
+        const data = await fetchPublicBusinessSettings('user_id, public_slug');
+        if (!data?.user_id) {
+            return null;
+        }
+        storeResolvedSettings(data);
+        return data.user_id;
     } catch (error) {
         console.error('No fue posible resolver el propietario del catálogo público', error);
         showToast('El catálogo solicitado no está disponible en este momento. Verifica el enlace compartido.', 'warning');
@@ -134,22 +219,10 @@ async function loadPublicSettings() {
     }
 
     try {
-        let query = callbacks.supabase.from('business_settings').select('*');
-
-        if (publicContext.slug) {
-            query = query.eq('public_slug', publicContext.slug);
-        } else if (publicContext.userId) {
-            query = query.eq('user_id', publicContext.userId);
-        } else {
-            query = query.eq('is_public', true).order('updated_at', { ascending: false }).limit(1);
-        }
-
-        const { data, error } = await query.maybeSingle();
-
-        if (error) throw error;
+        const data = await fetchPublicBusinessSettings('*');
 
         if (!data) {
-            if (publicContext.slug || publicContext.userId) {
+            if ((publicContext.slugCandidates?.length ?? 0) > 0 || publicContext.userId) {
                 state.appData.settings = {
                     ...state.appData.settings,
                     businessName: 'Catálogo no disponible',
@@ -163,7 +236,7 @@ async function loadPublicSettings() {
             return false;
         }
 
-        publicContext.userId = data.user_id ?? publicContext.userId;
+        storeResolvedSettings(data);
         state.appData.settings = {
             ...state.appData.settings,
             ...mapSettingsRow(data)
@@ -291,6 +364,93 @@ function showToast(message, type = 'info') {
 
     toast.querySelector('.notification-close')?.addEventListener('click', close);
     setTimeout(close, 4000);
+}
+
+function storeResolvedSettings(row) {
+    publicContext.settingsRow = row ?? null;
+
+    if (row?.user_id) {
+        publicContext.userId = row.user_id;
+    }
+
+    if (row?.public_slug) {
+        addSlugCandidate(row.public_slug);
+        const normalized = normalizeSlug(row.public_slug);
+        if (normalized) {
+            addSlugCandidate(normalized);
+            if (!publicContext.slug) {
+                publicContext.slug = normalized;
+            }
+        }
+    }
+}
+
+function slugMatchesCandidates(value) {
+    if (!value) return false;
+    const lower = value.toLowerCase();
+    return (publicContext.slugCandidates ?? []).some((candidate) => (candidate ?? '').toLowerCase() === lower);
+}
+
+function registerSlugCandidates(rawValue) {
+    if (typeof rawValue !== 'string') return;
+
+    const trimmed = rawValue.trim();
+    if (!trimmed) return;
+
+    addSlugCandidate(trimmed);
+
+    const normalized = normalizeSlug(trimmed);
+    if (normalized) {
+        publicContext.slug = normalized;
+        addSlugCandidate(normalized);
+    }
+
+    const slugified = slugifyCandidate(trimmed);
+    if (slugified && slugified !== normalized) {
+        if (!publicContext.slug) {
+            publicContext.slug = slugified;
+        }
+        addSlugCandidate(slugified);
+    }
+
+    if (!publicContext.slug) {
+        publicContext.slug = trimmed;
+    }
+}
+
+function addSlugCandidate(value) {
+    if (!value) return;
+    if (!Array.isArray(publicContext.slugCandidates)) {
+        publicContext.slugCandidates = [];
+    }
+    if (!publicContext.slugCandidates.includes(value)) {
+        publicContext.slugCandidates.push(value);
+    }
+}
+
+function slugifyCandidate(value = '') {
+    return value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/-{2,}/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+}
+
+function toFuzzyPattern(value) {
+    if (!value) return null;
+
+    const condensed = value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+
+    if (!condensed) return null;
+
+    return `%${condensed.split('').join('%')}%`;
 }
 
 function normalizeSlug(value = '') {
