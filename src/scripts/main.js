@@ -88,7 +88,22 @@ async function mountApp() {
     });
 }
 
+function shouldForcePublicView() {
+    try {
+        const url = new URL(window.location.href);
+        return url.searchParams.has('store') || url.searchParams.has('user');
+    } catch (error) {
+        console.error('No fue posible interpretar la URL para determinar el modo público', error);
+        return false;
+    }
+}
+
 async function bootstrap() {
+    if (shouldForcePublicView()) {
+        await mountPublicCatalog();
+        return;
+    }
+
     const { data } = await supabase.auth.getSession();
     if (data?.session?.user) {
         currentUser = data.session.user;
