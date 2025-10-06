@@ -284,9 +284,11 @@ function normalizeClientRecord(record) {
         .filter(Boolean);
     const fallbackName = nameParts.join(' ');
 
+    const resolvedName = record.name ?? fallbackName;
+
     return {
         id: record.id,
-        name: record.name ?? fallbackName || 'Cliente',
+        name: resolvedName || 'Cliente',
         email,
         phone,
         company: record.company ?? record.company_name ?? '',
