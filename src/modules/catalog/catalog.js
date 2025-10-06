@@ -329,6 +329,12 @@ function closeModal(id) {
 function renderProductCard(product) {
     const stockClass = product.stock === 0 ? 'out' : product.stock < 5 ? 'low' : '';
     const imageStyle = product.image ? `style="background-image: url('${product.image}')" class="product-image has-image"` : 'class="product-image"';
+    const adminActions = state.isAdmin
+        ? `
+                    <button class="btn-edit admin-only" data-action="edit-product" data-id="${product.id}">✏️</button>
+                    <button class="btn-delete admin-only" data-action="delete-product" data-id="${product.id}">🗑️</button>`
+        : '';
+
     return `
         <div class="product-card">
             <div ${imageStyle}>${product.image ? '' : '🛍️'}</div>
@@ -340,8 +346,7 @@ function renderProductCard(product) {
                 <span class="product-stock ${stockClass}">Stock: ${product.stock}</span>
                 <div class="product-actions">
                     <button class="btn-add-cart" data-action="add-to-cart" data-id="${product.id}" ${product.stock === 0 ? 'disabled' : ''}>Agregar</button>
-                    <button class="btn-edit admin-only" data-action="edit-product" data-id="${product.id}">✏️</button>
-                    <button class="btn-delete admin-only" data-action="delete-product" data-id="${product.id}">🗑️</button>
+                    ${adminActions}
                 </div>
             </div>
         </div>`;

@@ -155,10 +155,6 @@
     gap: 10px;
 }
 
-.admin-only {
-    display: none;
-}
-
 .btn-add-cart {
     flex: 1;
     background: var(--success);
