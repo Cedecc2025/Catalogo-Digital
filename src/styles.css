@@ -917,6 +917,12 @@ tbody td {
     grid-column: 1 / -1;
 }
 
+.settings-form-field .field-note {
+    font-size: 0.75rem;
+    color: rgba(148, 163, 184, 0.7);
+    line-height: 1.4;
+}
+
 .client-form-field input,
 .client-form-field select,
 .client-form-field textarea,

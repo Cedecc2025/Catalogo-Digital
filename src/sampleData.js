@@ -311,7 +311,8 @@ export function getInitialDashboardData() {
             companyAddress: 'San José, Costa Rica',
             tagline: 'Administra tu negocio en un solo lugar',
             themeColor: '#6366f1',
-            logoUrl: ''
+            logoUrl: '',
+            portalBaseUrl: 'client-portal.html'
         },
         portals: [
             {

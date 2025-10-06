@@ -139,6 +139,18 @@ function getPortalProducts(portal) {
 
 function buildPortalLink(slug) {
     if (!slug) return '';
+
+    const baseSetting = currentData?.settings?.portalBaseUrl?.trim();
+    if (baseSetting) {
+        try {
+            const url = new URL(baseSetting, window.location.origin);
+            url.searchParams.set('portal', slug);
+            return url.toString();
+        } catch (error) {
+            console.warn('No se pudo interpretar la URL base configurada para portales.', error);
+        }
+    }
+
     const { origin, pathname } = window.location;
     const sanitizedPath = pathname.replace(/index\.html?$/i, '');
     const basePath = sanitizedPath.endsWith('/') ? sanitizedPath : `${sanitizedPath}/`;
@@ -1192,7 +1204,16 @@ function renderSettingsForm(settings = {}) {
     const form = getElement(DASHBOARD_SELECTORS.settingsForm);
     if (!form) return;
 
-    const fields = ['companyName', 'companyEmail', 'companyPhone', 'companyAddress', 'tagline', 'themeColor', 'logoUrl'];
+    const fields = [
+        'companyName',
+        'companyEmail',
+        'companyPhone',
+        'companyAddress',
+        'tagline',
+        'themeColor',
+        'logoUrl',
+        'portalBaseUrl'
+    ];
     fields.forEach((field) => {
         if (form.elements[field]) {
             if (field === 'themeColor') {
@@ -1239,7 +1260,8 @@ function getSettingsFromForm() {
         companyAddress: form.elements.companyAddress?.value.trim() || '',
         tagline: form.elements.tagline?.value.trim() || '',
         themeColor: form.elements.themeColor?.value || '#6366f1',
-        logoUrl: form.elements.logoUrl?.value.trim() || ''
+        logoUrl: form.elements.logoUrl?.value.trim() || '',
+        portalBaseUrl: form.elements.portalBaseUrl?.value.trim() || ''
     };
 }
 
