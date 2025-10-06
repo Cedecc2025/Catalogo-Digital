@@ -84,8 +84,13 @@ async function loadPublicProducts() {
         if (publicContext.userId) {
             query = query.eq('user_id', publicContext.userId);
         } else if (publicContext.slug) {
-            state.appData.products = [];
-            return;
+            const ownerId = await resolveCatalogOwnerFromSlug();
+            if (!ownerId) {
+                state.appData.products = [];
+                return;
+            }
+            publicContext.userId = ownerId;
+            query = query.eq('user_id', ownerId);
         } else {
             query = query.eq('is_public', true);
         }
@@ -99,6 +104,26 @@ async function loadPublicProducts() {
         console.error('No fue posible cargar los productos públicos', error);
         showToast('No fue posible cargar los productos del catálogo.', 'error');
         state.appData.products = [];
+    }
+}
+
+async function resolveCatalogOwnerFromSlug() {
+    if (!callbacks.supabase || !publicContext.slug) return null;
+
+    try {
+        const { data, error } = await callbacks.supabase
+            .from('business_settings')
+            .select('user_id')
+            .eq('public_slug', publicContext.slug)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        return data?.user_id ?? null;
+    } catch (error) {
+        console.error('No fue posible resolver el propietario del catálogo público', error);
+        showToast('El catálogo solicitado no está disponible en este momento. Verifica el enlace compartido.', 'warning');
+        return null;
     }
 }
 
