@@ -146,6 +146,14 @@ function setFeedback(selector, message = '', type = '') {
     element.dataset.state = type;
 }
 
+function toggleFormControls(form, disabled) {
+    if (!form) return;
+    const controls = form.querySelectorAll('input, button, select, textarea');
+    controls.forEach((control) => {
+        control.disabled = disabled;
+    });
+}
+
 function parseArrayField(value) {
     if (Array.isArray(value)) {
         return value;
@@ -763,7 +771,7 @@ function createSlug(value) {
         || 'portal';
 }
 
-function handlePortalFormSubmit(event) {
+async function handlePortalFormSubmit(event) {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -780,6 +788,15 @@ function handlePortalFormSubmit(event) {
     const bannerImage = String(formData.get('bannerImage') || '').trim();
     const termsRaw = String(formData.get('terms') || '').trim();
 
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.portalFormFeedback,
+            'No se pudo conectar con la base de datos. Intenta de nuevo más tarde.',
+            'error'
+        );
+        return;
+    }
+
     if (!name || !contactEmail) {
         setFeedback(
             DASHBOARD_SELECTORS.portalFormFeedback,
@@ -792,6 +809,8 @@ function handlePortalFormSubmit(event) {
     const slug = createSlug(slugInput || name);
     const existingSlug = (currentData.portals || []).some((portal) => portal.slug === slug);
 
+    const terms = termsRaw ? termsRaw.split('\n').map((term) => term.trim()).filter(Boolean) : [];
+
     if (existingSlug) {
         setFeedback(
             DASHBOARD_SELECTORS.portalFormFeedback,
@@ -801,30 +820,61 @@ function handlePortalFormSubmit(event) {
         return;
     }
 
-    const newPortal = {
-        id: `portal-${Date.now()}`,
+    const payload = {
         slug,
         name,
         description,
-        contactEmail,
-        contactPhone,
-        accentColor: accentColor || '#4f46e5',
-        heroTitle: heroTitle || name,
-        heroSubtitle: heroSubtitle || description,
-        bannerImage,
-        productIds: [],
-        terms: termsRaw ? termsRaw.split('\n').map((term) => term.trim()).filter(Boolean) : []
+        contact_email: contactEmail,
+        contact_phone: contactPhone,
+        accent_color: accentColor || '#4f46e5',
+        hero_title: heroTitle || name,
+        hero_subtitle: heroSubtitle || description,
+        banner_image: bannerImage || null,
+        terms
     };
 
-    currentData.portals = [newPortal, ...(currentData.portals || [])];
-    selectedPortalSlug = newPortal.slug;
+    setFeedback(DASHBOARD_SELECTORS.portalFormFeedback, 'Guardando portal…', 'info');
+    toggleFormControls(form, true);
 
-    setFeedback(DASHBOARD_SELECTORS.portalFormFeedback, 'Portal creado correctamente.', 'success');
+    try {
+        const { data, error } = await supabaseClient.from('portals').insert(payload).select().single();
 
-    setTimeout(() => {
-        togglePortalForm(false);
-        renderDashboard(currentData);
-    }, 600);
+        if (error) {
+            if (error.code === '23505') {
+                setFeedback(
+                    DASHBOARD_SELECTORS.portalFormFeedback,
+                    'Ya existe un portal con ese identificador. Ajusta el slug manualmente.',
+                    'error'
+                );
+            } else {
+                setFeedback(
+                    DASHBOARD_SELECTORS.portalFormFeedback,
+                    'No se pudo guardar el portal. Intenta de nuevo.',
+                    'error'
+                );
+            }
+            return;
+        }
+
+        selectedPortalSlug = data?.slug ?? slug;
+        await loadDashboardDataFromSupabase();
+
+        setFeedback(DASHBOARD_SELECTORS.portalFormFeedback, 'Portal creado correctamente.', 'success');
+        form.reset();
+
+        setTimeout(() => {
+            togglePortalForm(false);
+        }, 600);
+    } catch (error) {
+        console.error('Error inesperado al crear el portal en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.portalFormFeedback,
+            'Ocurrió un error al crear el portal. Intenta nuevamente.',
+            'error'
+        );
+    } finally {
+        toggleFormControls(form, false);
+    }
 }
 
 function handlePortalListClick(event) {
@@ -1194,7 +1244,7 @@ function createClientRecord({ id, name, email, phone, company, status, notes }) 
     };
 }
 
-function handleClientFormSubmit(event) {
+async function handleClientFormSubmit(event) {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -1207,39 +1257,92 @@ function handleClientFormSubmit(event) {
     const status = String(formData.get('status') || '').trim() || 'Activo';
     const notes = String(formData.get('notes') || '').trim();
 
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.clientFeedback,
+            'No se pudo conectar con la base de datos. Intenta más tarde.',
+            'error'
+        );
+        return;
+    }
+
     if (!name) {
         setFeedback(DASHBOARD_SELECTORS.clientFeedback, 'El nombre es obligatorio para guardar el cliente.', 'error');
         return;
     }
 
-    const record = createClientRecord({
-        id: editingClientId ? Number(editingClientId) : Date.now(),
+    const isEditing = Boolean(editingClientId);
+    const payload = {
         name,
         email,
         phone,
         company,
         status,
+        status_class: getClientStatusClass(status),
         notes
-    });
+    };
 
-    if (editingClientId) {
-        currentData.clients = currentData.clients.map((client) =>
-            String(client.id) === String(editingClientId) ? { ...client, ...record } : client
+    setFeedback(
+        DASHBOARD_SELECTORS.clientFeedback,
+        isEditing ? 'Actualizando cliente…' : 'Guardando cliente…',
+        'info'
+    );
+    toggleFormControls(form, true);
+
+    try {
+        if (isEditing) {
+            const { error } = await supabaseClient
+                .from('clients')
+                .update(payload)
+                .eq('id', editingClientId);
+
+            if (error) {
+                setFeedback(
+                    DASHBOARD_SELECTORS.clientFeedback,
+                    'No se pudo actualizar el cliente. Intenta nuevamente.',
+                    'error'
+                );
+                return;
+            }
+        } else {
+            const { error } = await supabaseClient.from('clients').insert(payload);
+            if (error) {
+                setFeedback(
+                    DASHBOARD_SELECTORS.clientFeedback,
+                    'No se pudo registrar el cliente. Intenta nuevamente.',
+                    'error'
+                );
+                return;
+            }
+        }
+
+        await loadDashboardDataFromSupabase();
+
+        setFeedback(
+            DASHBOARD_SELECTORS.clientFeedback,
+            isEditing ? 'Cliente actualizado correctamente.' : 'Cliente agregado correctamente.',
+            'success'
         );
-        setFeedback(DASHBOARD_SELECTORS.clientFeedback, 'Cliente actualizado correctamente.', 'success');
-    } else {
-        currentData.clients = [record, ...currentData.clients];
-        setFeedback(DASHBOARD_SELECTORS.clientFeedback, 'Cliente agregado correctamente.', 'success');
+
+        editingClientId = null;
+        form.reset();
+
+        setTimeout(() => {
+            toggleClientForm(false);
+        }, 800);
+    } catch (error) {
+        console.error('Error inesperado al guardar el cliente en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.clientFeedback,
+            'Ocurrió un error al guardar el cliente. Intenta de nuevo.',
+            'error'
+        );
+    } finally {
+        toggleFormControls(form, false);
     }
-
-    renderDashboard(currentData);
-
-    setTimeout(() => {
-        toggleClientForm(false);
-    }, 800);
 }
 
-function handleClientDelete(clientId) {
+async function handleClientDelete(clientId) {
     const target = currentData.clients.find((client) => String(client.id) === String(clientId));
     if (!target) return;
 
@@ -1248,15 +1351,53 @@ function handleClientDelete(clientId) {
         return;
     }
 
-    currentData.clients = currentData.clients.filter((client) => String(client.id) !== String(clientId));
-    renderDashboard(currentData);
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.clientFeedback,
+            'No se pudo conectar con la base de datos. Intenta nuevamente.',
+            'error'
+        );
+        return;
+    }
+
+    setFeedback(DASHBOARD_SELECTORS.clientFeedback, 'Eliminando cliente…', 'info');
+
+    try {
+        const { error } = await supabaseClient.from('clients').delete().eq('id', clientId);
+        if (error) {
+            setFeedback(
+                DASHBOARD_SELECTORS.clientFeedback,
+                'No se pudo eliminar el cliente. Intenta de nuevo.',
+                'error'
+            );
+            return;
+        }
+
+        if (editingClientId && String(editingClientId) === String(clientId)) {
+            editingClientId = null;
+            toggleClientForm(false);
+        }
+
+        await loadDashboardDataFromSupabase();
+        setFeedback(DASHBOARD_SELECTORS.clientFeedback, 'Cliente eliminado correctamente.', 'success');
+        setTimeout(() => {
+            setFeedback(DASHBOARD_SELECTORS.clientFeedback);
+        }, 2000);
+    } catch (error) {
+        console.error('Error inesperado al eliminar el cliente en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.clientFeedback,
+            'Ocurrió un error al eliminar el cliente. Intenta más tarde.',
+            'error'
+        );
+    }
 }
 
 function handleClientEdit(clientId) {
     toggleClientForm(true, clientId);
 }
 
-function handleClientsTableClick(event) {
+async function handleClientsTableClick(event) {
     const actionButton = event.target.closest('[data-client-action]');
     if (!actionButton) return;
 
@@ -1267,7 +1408,7 @@ function handleClientsTableClick(event) {
     if (action === 'edit') {
         handleClientEdit(clientId);
     } else if (action === 'delete') {
-        handleClientDelete(clientId);
+        await handleClientDelete(clientId);
     }
 }
 
@@ -1417,22 +1558,55 @@ function toggleInventoryForm(show) {
     }
 }
 
-function recordInventoryAdjustment(product, { type, quantity, direction, reason }) {
-    const adjustment = {
-        id: Date.now(),
-        productId: product.id,
-        productName: product.name,
+async function persistInventoryChange(product, delta, { type, reason }) {
+    if (!supabaseClient) {
+        throw new Error('Supabase no está configurado.');
+    }
+
+    const currentStock = Number(product.stock ?? 0);
+    const desiredStock = currentStock + delta;
+    const updatedStock = Math.max(0, desiredStock);
+    const effectiveDelta = updatedStock - currentStock;
+
+    if (effectiveDelta === 0) {
+        return { updatedStock: currentStock, statusInfo: getStatusFromStock(currentStock), effectiveDelta };
+    }
+
+    const statusInfo = getStatusFromStock(updatedStock);
+
+    const { error: updateError } = await supabaseClient
+        .from('products')
+        .update({
+            stock: updatedStock,
+            status: statusInfo.status,
+            status_class: statusInfo.statusClass
+        })
+        .eq('id', product.id);
+
+    if (updateError) {
+        throw updateError;
+    }
+
+    const quantity = Math.abs(effectiveDelta);
+    const direction = effectiveDelta >= 0 ? 1 : -1;
+
+    const { error: adjustmentError } = await supabaseClient.from('inventory_adjustments').insert({
+        product_id: product.id,
+        product_name: product.name,
         type,
         quantity,
         direction,
-        reason: reason || '',
-        date: new Date().toISOString()
-    };
+        reason: reason || ''
+    });
 
-    currentData.inventoryAdjustments = [adjustment, ...(currentData.inventoryAdjustments || [])];
+    if (adjustmentError) {
+        console.warn('No se pudo registrar el ajuste de inventario en Supabase:', adjustmentError);
+    }
+
+    return { updatedStock, statusInfo, effectiveDelta };
 }
 
-function handleInventoryFormSubmit(event) {
+async function handleInventoryFormSubmit(event) {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -1442,6 +1616,15 @@ function handleInventoryFormSubmit(event) {
     const typeValue = String(formData.get('type') || '').trim().toLowerCase();
     const quantityRaw = Number(formData.get('quantity'));
     const reason = String(formData.get('reason') || '').trim();
+
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.inventoryFeedback,
+            'No se pudo conectar con la base de datos. Intenta nuevamente.',
+            'error'
+        );
+        return;
+    }
 
     if (!productId || Number.isNaN(quantityRaw) || quantityRaw === 0) {
         setFeedback(DASHBOARD_SELECTORS.inventoryFeedback, 'Selecciona un producto y una cantidad válida.', 'error');
@@ -1488,39 +1671,42 @@ function handleInventoryFormSubmit(event) {
         return;
     }
 
-    const updatedStock = Math.max(0, currentStock + effectiveDelta);
-    const statusInfo = getStatusFromStock(updatedStock);
+    setFeedback(DASHBOARD_SELECTORS.inventoryFeedback, 'Registrando ajuste…', 'info');
+    toggleFormControls(form, true);
 
-    currentData.products = currentData.products.map((item) =>
-        String(item.id) === productId
-            ? {
-                  ...item,
-                  stock: updatedStock,
-                  status: statusInfo.status,
-                  statusClass: statusInfo.statusClass
-              }
-            : item
-    );
+    try {
+        await persistInventoryChange(product, effectiveDelta, { type: typeLabel, reason });
+        await loadDashboardDataFromSupabase();
 
-    recordInventoryAdjustment(product, {
-        type: typeLabel,
-        quantity,
-        direction,
-        reason
-    });
+        setFeedback(DASHBOARD_SELECTORS.inventoryFeedback, 'Ajuste registrado correctamente.', 'success');
 
-    renderDashboard(currentData);
-
-    setFeedback(DASHBOARD_SELECTORS.inventoryFeedback, 'Ajuste registrado correctamente.', 'success');
-
-    setTimeout(() => {
-        toggleInventoryForm(false);
-    }, 800);
+        setTimeout(() => {
+            toggleInventoryForm(false);
+        }, 800);
+    } catch (error) {
+        console.error('Error al registrar el ajuste de inventario en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.inventoryFeedback,
+            'No se pudo registrar el ajuste. Intenta nuevamente.',
+            'error'
+        );
+    } finally {
+        toggleFormControls(form, false);
+    }
 }
 
-function handleInventoryQuickAdjust(productId, delta) {
+async function handleInventoryQuickAdjust(productId, delta) {
     const product = currentData.products.find((item) => String(item.id) === String(productId));
     if (!product || !delta) return;
+
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.inventoryFeedback,
+            'No se pudo conectar con la base de datos. Intenta nuevamente.',
+            'error'
+        );
+        return;
+    }
 
     const currentStock = Number(product.stock ?? 0);
     let effectiveDelta = delta;
@@ -1532,31 +1718,28 @@ function handleInventoryQuickAdjust(productId, delta) {
         return;
     }
 
-    const updatedStock = Math.max(0, currentStock + effectiveDelta);
-    const statusInfo = getStatusFromStock(updatedStock);
+    try {
+        await persistInventoryChange(product, effectiveDelta, {
+            type: effectiveDelta > 0 ? 'Entrada' : 'Salida',
+            reason: effectiveDelta > 0 ? 'Ajuste rápido (+)' : 'Ajuste rápido (-)'
+        });
 
-    currentData.products = currentData.products.map((item) =>
-        String(item.id) === String(productId)
-            ? {
-                  ...item,
-                  stock: updatedStock,
-                  status: statusInfo.status,
-                  statusClass: statusInfo.statusClass
-              }
-            : item
-    );
-
-    recordInventoryAdjustment(product, {
-        type: effectiveDelta > 0 ? 'Entrada' : 'Salida',
-        quantity: Math.abs(effectiveDelta),
-        direction: effectiveDelta > 0 ? 1 : -1,
-        reason: effectiveDelta > 0 ? 'Ajuste rápido (+)' : 'Ajuste rápido (-)'
-    });
-
-    renderDashboard(currentData);
+        await loadDashboardDataFromSupabase();
+        setFeedback(DASHBOARD_SELECTORS.inventoryFeedback, 'Ajuste actualizado.', 'success');
+        setTimeout(() => {
+            setFeedback(DASHBOARD_SELECTORS.inventoryFeedback);
+        }, 2000);
+    } catch (error) {
+        console.error('No se pudo aplicar el ajuste rápido en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.inventoryFeedback,
+            'No se pudo completar el ajuste rápido. Intenta nuevamente.',
+            'error'
+        );
+    }
 }
 
-function handleInventoryTableClick(event) {
+async function handleInventoryTableClick(event) {
     const actionButton = event.target.closest('[data-inventory-action]');
     if (!actionButton) return;
 
@@ -1565,11 +1748,11 @@ function handleInventoryTableClick(event) {
     if (!productId || !action) return;
 
     if (action === 'decrease') {
-        handleInventoryQuickAdjust(productId, -1);
+        await handleInventoryQuickAdjust(productId, -1);
     } else if (action === 'increase') {
-        handleInventoryQuickAdjust(productId, 1);
+        await handleInventoryQuickAdjust(productId, 1);
     } else if (action === 'increase-5') {
-        handleInventoryQuickAdjust(productId, 5);
+        await handleInventoryQuickAdjust(productId, 5);
     }
 }
 
@@ -1688,7 +1871,18 @@ function getSettingsFromForm() {
     };
 }
 
-function handleSettingsSubmit(event) {
+const SETTINGS_KEY_MAP = {
+    companyName: 'company_name',
+    companyEmail: 'company_email',
+    companyPhone: 'company_phone',
+    companyAddress: 'company_address',
+    tagline: 'tagline',
+    themeColor: 'theme_color',
+    logoUrl: 'logo_url',
+    portalBaseUrl: 'portal_base_url'
+};
+
+async function handleSettingsSubmit(event) {
     event.preventDefault();
 
     const formSettings = getSettingsFromForm();
@@ -1697,14 +1891,50 @@ function handleSettingsSubmit(event) {
         return;
     }
 
-    currentData.settings = {
-        ...currentData.settings,
-        ...formSettings
-    };
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.settingsFeedback,
+            'No se pudo conectar con la base de datos. Intenta nuevamente.',
+            'error'
+        );
+        return;
+    }
 
-    renderDashboard(currentData);
+    const form = event.currentTarget;
+    const payload = Object.entries(formSettings).map(([key, value]) => ({
+        key: SETTINGS_KEY_MAP[key] ?? key,
+        value: typeof value === 'string' ? value : String(value ?? '')
+    }));
 
-    setFeedback(DASHBOARD_SELECTORS.settingsFeedback, 'Configuración guardada correctamente.', 'success');
+    setFeedback(DASHBOARD_SELECTORS.settingsFeedback, 'Guardando configuración…', 'info');
+    toggleFormControls(form, true);
+
+    try {
+        const { error } = await supabaseClient
+            .from('settings')
+            .upsert(payload, { onConflict: 'key' });
+
+        if (error) {
+            setFeedback(
+                DASHBOARD_SELECTORS.settingsFeedback,
+                'No se pudo guardar la configuración. Intenta nuevamente.',
+                'error'
+            );
+            return;
+        }
+
+        await loadDashboardDataFromSupabase();
+        setFeedback(DASHBOARD_SELECTORS.settingsFeedback, 'Configuración guardada correctamente.', 'success');
+    } catch (error) {
+        console.error('Error inesperado al guardar la configuración en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.settingsFeedback,
+            'Ocurrió un error al guardar la configuración. Intenta de nuevo.',
+            'error'
+        );
+    } finally {
+        toggleFormControls(form, false);
+    }
 }
 
 function handleSettingsPreviewChange() {
@@ -1823,23 +2053,60 @@ function getStatusFromStock(stock) {
     return { status: 'Disponible', statusClass: 'success' };
 }
 
-function ensureClientExists(name) {
-    if (!name) return;
-    const normalized = name.toLowerCase();
-    const exists = currentData.clients.some((client) => client.name?.toLowerCase() === normalized);
-    if (!exists) {
-        const newClient = createClientRecord({
-            id: Date.now(),
-            name,
-            company: name,
-            status: 'Prospecto',
-            notes: 'Añadido automáticamente desde una venta.'
-        });
-        currentData.clients = [newClient, ...currentData.clients];
+async function ensureClientExists(name) {
+    if (!name || !supabaseClient) {
+        return null;
+    }
+
+    const normalized = name.trim().toLowerCase();
+    const existingLocal = currentData.clients.find((client) => client.name?.toLowerCase() === normalized);
+    if (existingLocal) {
+        return existingLocal;
+    }
+
+    const sanitizedSearch = name.replace(/[\\%_]/g, '\\$&');
+
+    try {
+        const { data: remoteMatch, error: remoteError } = await supabaseClient
+            .from('clients')
+            .select('*')
+            .ilike('name', sanitizedSearch)
+            .limit(1)
+            .maybeSingle();
+
+        if (!remoteError && remoteMatch) {
+            return normalizeClientRecord(remoteMatch);
+        }
+    } catch (error) {
+        console.warn('No se pudo consultar el cliente en Supabase:', error);
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('clients')
+            .insert({
+                name,
+                company: name,
+                status: 'Prospecto',
+                status_class: getClientStatusClass('Prospecto'),
+                notes: 'Añadido automáticamente desde una venta.'
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('No se pudo crear el cliente automáticamente en Supabase:', error.message);
+            return null;
+        }
+
+        return normalizeClientRecord(data);
+    } catch (error) {
+        console.error('Error inesperado al crear el cliente en Supabase:', error);
+        return null;
     }
 }
 
-function handleAddSaleSubmit(event) {
+async function handleAddSaleSubmit(event) {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -1851,6 +2118,15 @@ function handleAddSaleSubmit(event) {
     const unitPriceValue = Number(formData.get('unitPrice'));
     const paymentMethod = String(formData.get('paymentMethod') || '').trim() || 'Efectivo';
     const notes = String(formData.get('notes') || '').trim();
+
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.addSaleFeedback,
+            'No se pudo conectar con la base de datos. Intenta nuevamente.',
+            'error'
+        );
+        return;
+    }
 
     if (!clientName || !productId || Number.isNaN(quantityValue) || Number.isNaN(unitPriceValue)) {
         setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Completa todos los campos antes de guardar.', 'error');
@@ -1867,57 +2143,83 @@ function handleAddSaleSubmit(event) {
     const normalizedUnitPrice = Number(Math.max(0, unitPriceValue).toFixed(2));
     const saleTotal = Number((normalizedQuantity * normalizedUnitPrice).toFixed(2));
 
-    const newSale = {
-        id: Date.now(),
-        date: new Date().toISOString(),
-        total: saleTotal,
-        status: 'Completado',
-        statusClass: 'success',
-        paymentMethod,
-        client: { name: clientName },
-        items: [
-            {
-                productId: product.id,
-                productName: product.name,
-                quantity: normalizedQuantity,
-                unitPrice: normalizedUnitPrice
-            }
-        ],
-        notes: notes || undefined
-    };
-
-    currentData.products = currentData.products.map((item) => {
-        if (String(item.id) !== productId) return item;
-        const currentStock = Number(item.stock ?? 0);
-        const updatedStock = Math.max(0, currentStock - normalizedQuantity);
-        const statusInfo = getStatusFromStock(updatedStock);
-        return {
-            ...item,
-            stock: updatedStock,
-            status: statusInfo.status,
-            statusClass: statusInfo.statusClass
-        };
-    });
-
-    ensureClientExists(clientName);
-
-    currentData.sales = [newSale, ...currentData.sales];
-
-    renderDashboard(currentData);
-
-    form.reset();
-    const quantityInput = getElement(DASHBOARD_SELECTORS.saleQuantityInput);
-    if (quantityInput) {
-        quantityInput.value = '1';
+    const currentStock = Number(product.stock ?? 0);
+    if (normalizedQuantity > currentStock) {
+        setFeedback(
+            DASHBOARD_SELECTORS.addSaleFeedback,
+            'No hay inventario suficiente para registrar esta venta.',
+            'error'
+        );
+        return;
     }
-    handleSaleProductChange();
-    updateSaleTotalPreview();
 
-    setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Venta registrada correctamente.', 'success');
+    setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Registrando venta…', 'info');
+    toggleFormControls(form, true);
 
-    setTimeout(() => {
-        toggleAddSaleForm(false);
-    }, 900);
+    try {
+        const clientRecord = await ensureClientExists(clientName);
+
+        const salePayload = {
+            sale_date: new Date().toISOString(),
+            total: saleTotal,
+            status: 'Completado',
+            status_class: 'success',
+            payment_method: paymentMethod,
+            notes: notes || null,
+            client_id: clientRecord?.id ?? null,
+            client_name: clientName,
+            client_email: clientRecord?.email ?? null,
+            client_phone: clientRecord?.phone ?? null,
+            items: [
+                {
+                    product_id: product.id,
+                    productName: product.name,
+                    quantity: normalizedQuantity,
+                    unitPrice: normalizedUnitPrice
+                }
+            ]
+        };
+
+        const { error: saleError } = await supabaseClient.from('sales').insert(salePayload);
+        if (saleError) {
+            setFeedback(
+                DASHBOARD_SELECTORS.addSaleFeedback,
+                'No se pudo registrar la venta. Intenta nuevamente.',
+                'error'
+            );
+            return;
+        }
+
+        await persistInventoryChange(product, -normalizedQuantity, {
+            type: 'Venta',
+            reason: paymentMethod ? `Venta registrada (${paymentMethod})` : 'Venta registrada'
+        });
+
+        await loadDashboardDataFromSupabase();
+
+        form.reset();
+        const quantityInput = getElement(DASHBOARD_SELECTORS.saleQuantityInput);
+        if (quantityInput) {
+            quantityInput.value = '1';
+        }
+        handleSaleProductChange();
+        updateSaleTotalPreview();
+
+        setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Venta registrada correctamente.', 'success');
+
+        setTimeout(() => {
+            toggleAddSaleForm(false);
+        }, 900);
+    } catch (error) {
+        console.error('Error inesperado al registrar la venta en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.addSaleFeedback,
+            'Ocurrió un error al registrar la venta. Intenta nuevamente.',
+            'error'
+        );
+    } finally {
+        toggleFormControls(form, false);
+    }
 }
 
 function updateAddProductButtonState() {
@@ -2082,7 +2384,7 @@ function startEditingProduct(productId) {
     }
 }
 
-function handleDeleteProduct(productId) {
+async function handleDeleteProduct(productId) {
     const products = Array.isArray(currentData.products) ? currentData.products : [];
     const product = products.find((item) => String(item.id) === String(productId));
 
@@ -2097,31 +2399,50 @@ function handleDeleteProduct(productId) {
         return;
     }
 
-    currentData.products = products.filter((item) => String(item.id) !== String(productId));
-    currentData.portals = (currentData.portals || []).map((portal) => {
-        const productIds = Array.isArray(portal.productIds) ? portal.productIds : [];
-        const filteredIds = productIds.filter((id) => String(id) !== String(productId));
-        return {
-            ...portal,
-            productIds: filteredIds
-        };
-    });
-
-    if (editingProductId && String(editingProductId) === String(productId)) {
-        toggleAddProductForm(false);
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.addProductFeedback,
+            'No se pudo conectar con la base de datos. Intenta nuevamente.',
+            'error'
+        );
+        return;
     }
 
-    renderDashboard(currentData);
+    setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Eliminando producto…', 'info');
 
-    if (isAddProductFormVisible) {
+    try {
+        const { error } = await supabaseClient.from('products').delete().eq('id', productId);
+        if (error) {
+            setFeedback(
+                DASHBOARD_SELECTORS.addProductFeedback,
+                'No se pudo eliminar el producto. Intenta nuevamente.',
+                'error'
+            );
+            return;
+        }
+
+        if (editingProductId && String(editingProductId) === String(productId)) {
+            editingProductId = null;
+            setProductFormMode('create');
+            toggleAddProductForm(false);
+        }
+
+        await loadDashboardDataFromSupabase();
         setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Producto eliminado correctamente.', 'success');
         setTimeout(() => {
             setFeedback(DASHBOARD_SELECTORS.addProductFeedback);
         }, 2000);
+    } catch (error) {
+        console.error('Error inesperado al eliminar el producto en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.addProductFeedback,
+            'Ocurrió un error al eliminar el producto. Intenta de nuevo.',
+            'error'
+        );
     }
 }
 
-function handleCatalogTableClick(event) {
+async function handleCatalogTableClick(event) {
     const target = event.target;
     if (!target || typeof target.closest !== 'function') {
         return;
@@ -2142,7 +2463,7 @@ function handleCatalogTableClick(event) {
     if (action === 'edit') {
         startEditingProduct(productId);
     } else if (action === 'delete') {
-        handleDeleteProduct(productId);
+        await handleDeleteProduct(productId);
     }
 }
 
@@ -2162,7 +2483,7 @@ function getStatusClass(status) {
     }
 }
 
-function handleAddProductSubmit(event) {
+async function handleAddProductSubmit(event) {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -2175,6 +2496,15 @@ function handleAddProductSubmit(event) {
     const status = String(formData.get('status') || '').trim() || 'Disponible';
     const image = String(formData.get('image') || '').trim();
     const portalId = String(formData.get('portalId') || '').trim() || String(currentData.portals?.[0]?.id ?? '');
+
+    if (!supabaseClient) {
+        setFeedback(
+            DASHBOARD_SELECTORS.addProductFeedback,
+            'No se pudo conectar con la base de datos. Intenta más tarde.',
+            'error'
+        );
+        return;
+    }
 
     if (!name || !category || Number.isNaN(price) || Number.isNaN(stock)) {
         setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Completa todos los campos antes de guardar.', 'error');
@@ -2190,121 +2520,96 @@ function handleAddProductSubmit(event) {
         return;
     }
 
-    const normalizedPrice = Math.max(0, price);
+    const normalizedPrice = Number(Math.max(0, price).toFixed(2));
     const normalizedStock = Math.max(0, Math.trunc(stock));
     const statusClass = getStatusClass(status);
+    const portal = findPortalById(portalId);
+    const isEditing = Boolean(editingProductId);
 
-    if (editingProductId) {
-        const products = Array.isArray(currentData.products) ? currentData.products : [];
-        const productIndex = products.findIndex((product) => String(product.id) === String(editingProductId));
-
-        if (productIndex === -1) {
-            setFeedback(
-                DASHBOARD_SELECTORS.addProductFeedback,
-                'El producto que intentas editar ya no existe.',
-                'error'
-            );
-            editingProductId = null;
-            setProductFormMode('create');
-            renderDashboard(currentData);
-            toggleAddProductForm(false);
-            return;
-        }
-
-        const previousProduct = products[productIndex];
-        const updatedProduct = {
-            ...previousProduct,
-            name,
-            category,
-            price: normalizedPrice,
-            stock: normalizedStock,
-            status,
-            statusClass,
-            image,
-            portalId
-        };
-
-        currentData.products = [
-            ...products.slice(0, productIndex),
-            updatedProduct,
-            ...products.slice(productIndex + 1)
-        ];
-
-        currentData.portals = (currentData.portals || []).map((portal) => {
-            const productIds = Array.isArray(portal.productIds) ? portal.productIds : [];
-            const filteredIds = productIds.filter((id) => String(id) !== String(updatedProduct.id));
-
-            if (String(portal.id) === String(portalId)) {
-                return {
-                    ...portal,
-                    productIds: [updatedProduct.id, ...filteredIds]
-                };
-            }
-
-            return {
-                ...portal,
-                productIds: filteredIds
-            };
-        });
-
-        const updatedPortal = findPortalById(portalId);
-        if (updatedPortal?.slug) {
-            selectedPortalSlug = updatedPortal.slug;
-        }
-
-        renderDashboard(currentData);
-
-        setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Producto actualizado correctamente.', 'success');
-        editingProductId = null;
-        setProductFormMode('create');
-        updateAddProductButtonState();
-        setTimeout(() => {
-            toggleAddProductForm(false);
-        }, 800);
-        return;
-    }
-
-    const newProduct = {
-        id: Date.now(),
+    const payload = {
         name,
         category,
         price: normalizedPrice,
         stock: normalizedStock,
         status,
-        statusClass,
-        image,
-        portalId
+        status_class: statusClass,
+        image: image || null,
+        portal_id: portalId || null,
+        portal_slug: portal?.slug ?? null
     };
 
-    currentData.products = [newProduct, ...currentData.products];
-    currentData.portals = (currentData.portals || []).map((portal) => {
-        if (String(portal.id) === String(portalId)) {
-            const productIds = Array.isArray(portal.productIds) ? portal.productIds : [];
-            return {
-                ...portal,
-                productIds: [newProduct.id, ...productIds.filter((id) => String(id) !== String(newProduct.id))]
-            };
+    setFeedback(
+        DASHBOARD_SELECTORS.addProductFeedback,
+        isEditing ? 'Actualizando producto…' : 'Guardando producto…',
+        'info'
+    );
+    toggleFormControls(form, true);
+
+    try {
+        if (isEditing) {
+            const { data, error } = await supabaseClient
+                .from('products')
+                .update(payload)
+                .eq('id', editingProductId)
+                .select()
+                .single();
+
+            if (error) {
+                setFeedback(
+                    DASHBOARD_SELECTORS.addProductFeedback,
+                    'No se pudo actualizar el producto. Intenta nuevamente.',
+                    'error'
+                );
+                return;
+            }
+
+            selectedPortalSlug = data?.portal_slug ?? portal?.slug ?? selectedPortalSlug;
+        } else {
+            const { data, error } = await supabaseClient
+                .from('products')
+                .insert(payload)
+                .select()
+                .single();
+
+            if (error) {
+                setFeedback(
+                    DASHBOARD_SELECTORS.addProductFeedback,
+                    'No se pudo guardar el producto. Intenta nuevamente.',
+                    'error'
+                );
+                return;
+            }
+
+            selectedPortalSlug = data?.portal_slug ?? portal?.slug ?? selectedPortalSlug;
         }
 
-        return {
-            ...portal,
-            productIds: Array.isArray(portal.productIds)
-                ? portal.productIds.filter((id) => String(id) !== String(newProduct.id))
-                : portal.productIds
-        };
-    });
+        await loadDashboardDataFromSupabase();
 
-    const productPortal = findPortalById(portalId);
-    if (productPortal?.slug) {
-        selectedPortalSlug = productPortal.slug;
+        setFeedback(
+            DASHBOARD_SELECTORS.addProductFeedback,
+            isEditing ? 'Producto actualizado correctamente.' : 'Producto agregado correctamente.',
+            'success'
+        );
+
+        editingProductId = null;
+        setProductFormMode('create');
+        form.reset();
+        populateProductPortalSelect(currentData.portals || []);
+        updateAddProductButtonState();
+
+        setTimeout(() => {
+            toggleAddProductForm(false);
+        }, 800);
+    } catch (error) {
+        console.error('Error inesperado al guardar el producto en Supabase:', error);
+        setFeedback(
+            DASHBOARD_SELECTORS.addProductFeedback,
+            'Ocurrió un error al guardar el producto. Intenta nuevamente.',
+            'error'
+        );
+    } finally {
+        toggleFormControls(form, false);
     }
-
-    renderDashboard(currentData);
-
-    setFeedback(DASHBOARD_SELECTORS.addProductFeedback, 'Producto agregado correctamente.', 'success');
-    setTimeout(() => {
-        toggleAddProductForm(false);
-    }, 800);
 }
 
 function setActivePanel(panel) {
