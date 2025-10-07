@@ -30,6 +30,8 @@ const DASHBOARD_SELECTORS = {
     saleUnitPriceInput: '#saleUnitPrice',
     saleTotalPreview: '#saleTotalPreview',
     salesHistoryTable: '#salesHistoryTable',
+    saleRequestsCounter: '#saleRequestsCounter',
+    saleRequestsTable: '#salesRequestsTable',
     clientsCounter: '#clientsCounter',
     clientsTableBody: '#clientsTableBody',
     addClientButton: '#addClientButton',
@@ -88,6 +90,8 @@ let selectedPortalSlug = defaultDashboardState.portals?.[0]?.slug ?? null;
 let isFetchingDashboardData = false;
 let hasLoadedDashboardData = false;
 let lastLoadedUserId = null;
+let realtimeChannel = null;
+let pendingRealtimeRefresh = false;
 
 function getDefaultSettings() {
     return cloneData(defaultDashboardState.settings || {});
@@ -283,6 +287,29 @@ function normalizeSaleRecord(record) {
     };
 }
 
+function normalizeSaleRequestRecord(record) {
+    const items = parseJsonItems(record.items).map((item) => ({
+        productId: item.product_id ?? item.productId ?? item.id ?? null,
+        name: item.name ?? item.productName ?? item.product ?? 'Producto',
+        quantity: Number(item.quantity ?? item.qty ?? 0) || 0,
+        unitPrice: Number(item.unit_price ?? item.unitPrice ?? item.price ?? 0) || 0
+    }));
+
+    return {
+        id: record.id,
+        portalId: record.portal_id ?? record.portalId ?? null,
+        portalSlug: record.portal_slug ?? record.portalSlug ?? '',
+        name: record.name ?? 'Cliente',
+        company: record.company ?? record.business ?? '',
+        email: record.email ?? record.contact_email ?? '',
+        phone: record.phone ?? record.contact_phone ?? '',
+        notes: record.notes ?? record.comments ?? '',
+        total: Number(record.total ?? record.amount ?? 0) || 0,
+        submittedAt: record.submitted_at ?? record.created_at ?? new Date().toISOString(),
+        items
+    };
+}
+
 function normalizeClientRecord(record) {
     const status = record.status ?? record.state ?? 'Activo';
     const email = record.email ?? record.contact_email ?? '';
@@ -473,9 +500,18 @@ async function loadDashboardDataFromSupabase() {
     isFetchingDashboardData = true;
 
     try {
-        const [productsRaw, salesRaw, clientsRaw, inventoryRaw, portalsRaw, settingsRaw] = await Promise.all([
+        const [
+            productsRaw,
+            salesRaw,
+            saleRequestsRaw,
+            clientsRaw,
+            inventoryRaw,
+            portalsRaw,
+            settingsRaw
+        ] = await Promise.all([
             fetchTableData('products'),
             fetchTableData('sales'),
+            fetchTableData('sale_requests', { order: { column: 'submitted_at', ascending: false } }),
             fetchTableData('clients'),
             fetchTableData('inventory_adjustments'),
             fetchTableData('portals'),
@@ -485,6 +521,7 @@ async function loadDashboardDataFromSupabase() {
         const normalized = {
             products: productsRaw.map(normalizeProductRecord),
             sales: salesRaw.map(normalizeSaleRecord),
+            saleRequests: saleRequestsRaw.map(normalizeSaleRequestRecord),
             clients: clientsRaw.map(normalizeClientRecord),
             inventoryAdjustments: inventoryRaw.map(normalizeInventoryAdjustmentRecord),
             portals: portalsRaw.map(normalizePortalRecord).filter((portal) => portal.slug),
@@ -504,7 +541,52 @@ async function loadDashboardDataFromSupabase() {
         hasLoadedDashboardData = false;
     } finally {
         isFetchingDashboardData = false;
+        if (pendingRealtimeRefresh) {
+            pendingRealtimeRefresh = false;
+            await loadDashboardDataFromSupabase();
+        }
     }
+}
+
+function ensureRealtimeSubscriptions() {
+    if (!supabaseClient || typeof supabaseClient.channel !== 'function') {
+        return;
+    }
+
+    if (realtimeChannel) {
+        return;
+    }
+
+    const channel = supabaseClient
+        .channel('dashboard-live-updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'sale_requests' }, () => {
+            if (isFetchingDashboardData) {
+                pendingRealtimeRefresh = true;
+                return;
+            }
+
+            loadDashboardDataFromSupabase();
+        });
+
+    channel.subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            supabaseClient.removeChannel(channel);
+            if (realtimeChannel === channel) {
+                realtimeChannel = null;
+            }
+        }
+    });
+
+    realtimeChannel = channel;
+}
+
+function teardownRealtimeSubscriptions() {
+    if (!supabaseClient || !realtimeChannel) {
+        return;
+    }
+
+    supabaseClient.removeChannel(realtimeChannel);
+    realtimeChannel = null;
 }
 
 function findPortalById(portalId) {
@@ -700,6 +782,13 @@ function renderClientPortalCards(portals = []) {
             const link = buildPortalLink(portal.slug);
             const productCount = getPortalProducts(portal).length;
             const totalProductsLabel = productCount === 1 ? '1 producto' : `${productCount} productos`;
+            const portalRequests = (currentData.saleRequests || []).filter((request) => {
+                if (portal.id && request.portalId) {
+                    return String(portal.id) === String(request.portalId);
+                }
+                return request.portalSlug === portal.slug;
+            });
+            const requestLabel = portalRequests.length === 1 ? '1 solicitud' : `${portalRequests.length} solicitudes`;
             const accentColor = portal.accentColor || '#4f46e5';
 
             return `
@@ -717,6 +806,10 @@ function renderClientPortalCards(portals = []) {
                         <div>
                             <dt>Productos publicados</dt>
                             <dd>${totalProductsLabel}</dd>
+                        </div>
+                        <div>
+                            <dt>Solicitudes recibidas</dt>
+                            <dd>${requestLabel}</dd>
                         </div>
                         <div>
                             <dt>Contacto</dt>
@@ -975,19 +1068,36 @@ function formatDate(dateString) {
     }).format(new Date(dateString));
 }
 
-function calculateTodayOrders(sales) {
+function formatDateTime(dateString) {
+    return new Intl.DateTimeFormat('es-CR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(new Date(dateString));
+}
+
+function calculateTodayOrders(sales, saleRequests = []) {
     const today = new Date();
-    return sales.filter((sale) => {
+    const todaySales = sales.filter((sale) => {
         const saleDate = new Date(sale.date);
         return saleDate.toDateString() === today.toDateString();
     }).length;
+
+    const todayRequests = saleRequests.filter((request) => {
+        const submittedAt = new Date(request.submittedAt);
+        return submittedAt.toDateString() === today.toDateString();
+    }).length;
+
+    return todaySales + todayRequests;
 }
 
 function renderStats(data) {
     const totalSales = data.sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalClients = data.clients.length;
     const totalProducts = data.products.length;
-    const todayOrders = calculateTodayOrders(data.sales);
+    const todayOrders = calculateTodayOrders(data.sales, data.saleRequests || []);
 
     setText(DASHBOARD_SELECTORS.totalSales, formatCurrency(totalSales));
     setText(DASHBOARD_SELECTORS.totalClients, String(totalClients));
@@ -1133,6 +1243,90 @@ function renderSalesHistoryTable(sales) {
                 </tr>`;
         })
         .join('');
+}
+
+function summarizeSaleRequestItems(items = []) {
+    if (!items.length) {
+        return {
+            label: '—',
+            quantity: '—'
+        };
+    }
+
+    const totalQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const primary = items[0];
+    const additionalCount = Math.max(0, items.length - 1);
+    const productLabel = `${escapeHtml(primary.name ?? 'Producto')}${additionalCount ? ` +${additionalCount} más` : ''}`;
+    const quantityLabel = totalQuantity
+        ? `${totalQuantity} ${totalQuantity === 1 ? 'unidad' : 'unidades'}`
+        : '—';
+
+    return {
+        label: productLabel,
+        quantity: quantityLabel
+    };
+}
+
+function renderSaleRequestsTable(requests) {
+    const tableBody = getElement(DASHBOARD_SELECTORS.saleRequestsTable);
+    const counter = getElement(DASHBOARD_SELECTORS.saleRequestsCounter);
+
+    if (counter) {
+        const total = requests.length;
+        counter.textContent = total === 1 ? '1 solicitud' : `${total} solicitudes`;
+    }
+
+    if (!tableBody) return;
+
+    if (!requests.length) {
+        tableBody.innerHTML =
+            '<tr><td colspan="6" style="text-align: center;">No hay solicitudes recibidas desde el portal</td></tr>';
+        return;
+    }
+
+    const rows = [...requests]
+        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+        .map((request) => {
+            const portal = findPortalById(request.portalId) || findPortalBySlug(request.portalSlug);
+            const portalName = escapeHtml(portal?.name ?? request.portalSlug ?? 'Portal');
+            const productsSummary = summarizeSaleRequestItems(Array.isArray(request.items) ? request.items : []);
+            const contactParts = [request.email, request.phone].filter(Boolean).map((value) => escapeHtml(value));
+            const contactLabel = contactParts.length ? contactParts.join(' · ') : '—';
+            const companyMarkup = request.company
+                ? `<span class="sales-request-company">${escapeHtml(request.company)}</span>`
+                : '';
+            const notesMarkup = request.notes
+                ? `<span class="sales-request-note" title="${escapeHtml(request.notes)}">${escapeHtml(request.notes)}</span>`
+                : '';
+
+            return `
+                <tr>
+                    <td>${formatDateTime(request.submittedAt)}</td>
+                    <td>
+                        <div class="sales-request-client">
+                            <strong>${escapeHtml(request.name)}</strong>
+                            ${companyMarkup}
+                        </div>
+                    </td>
+                    <td>${portalName}</td>
+                    <td>
+                        <div class="sales-request-products">
+                            <span>${productsSummary.label}</span>
+                            <small>${productsSummary.quantity}</small>
+                        </div>
+                    </td>
+                    <td>${formatCurrency(request.total ?? 0)}</td>
+                    <td>
+                        <div class="sales-request-contact">
+                            <span>${contactLabel}</span>
+                            ${notesMarkup}
+                        </div>
+                    </td>
+                </tr>`;
+        })
+        .join('');
+
+    tableBody.innerHTML = rows;
 }
 
 function getClientStatusClass(status) {
@@ -2846,6 +3040,7 @@ export function initDashboard({ supabase }) {
 export function renderDashboard(data = currentData) {
     currentData = cloneData(data);
     currentData.sales = Array.isArray(currentData.sales) ? currentData.sales : [];
+    currentData.saleRequests = Array.isArray(currentData.saleRequests) ? currentData.saleRequests : [];
     currentData.clients = Array.isArray(currentData.clients) ? currentData.clients : [];
     currentData.products = Array.isArray(currentData.products) ? currentData.products : [];
     currentData.inventoryAdjustments = Array.isArray(currentData.inventoryAdjustments)
@@ -2863,6 +3058,7 @@ export function renderDashboard(data = currentData) {
     renderProductCatalog(currentData.products);
     renderSalesIndicators(currentData.sales);
     renderSalesHistoryTable(currentData.sales);
+    renderSaleRequestsTable(currentData.saleRequests);
     populateSaleProductOptions(currentData.products);
     handleSaleProductChange();
     renderClientsTable(currentData.clients);
@@ -2891,6 +3087,8 @@ export async function showDashboard(session) {
     const userId = session?.user?.id ?? null;
     const shouldReload = !hasLoadedDashboardData || lastLoadedUserId !== userId;
 
+    ensureRealtimeSubscriptions();
+
     if (shouldReload) {
         lastLoadedUserId = userId;
         await loadDashboardDataFromSupabase();
@@ -2908,6 +3106,8 @@ export function hideDashboard() {
     selectedPortalSlug = defaultDashboardState.portals?.[0]?.slug ?? null;
     hasLoadedDashboardData = false;
     lastLoadedUserId = null;
+    teardownRealtimeSubscriptions();
+    pendingRealtimeRefresh = false;
     activePanel = 'overview';
     setActivePanel(activePanel);
 }
@@ -2916,6 +3116,7 @@ export function setDashboardData(data) {
     if (!data) return;
     currentData = {
         sales: Array.isArray(data.sales) ? cloneData(data.sales) : [],
+        saleRequests: Array.isArray(data.saleRequests) ? cloneData(data.saleRequests) : [],
         clients: Array.isArray(data.clients) ? cloneData(data.clients) : [],
         products: Array.isArray(data.products) ? cloneData(data.products) : [],
         inventoryAdjustments: Array.isArray(data.inventoryAdjustments)

@@ -15,6 +15,7 @@ export function getInitialDashboardData() {
         clients: [],
         products: [],
         inventoryAdjustments: [],
+        saleRequests: [],
         portals: [],
         settings: {
             companyName: '',

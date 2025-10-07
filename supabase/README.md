@@ -13,6 +13,7 @@ Este directorio contiene los scripts SQL necesarios para aprovisionar la base de
 2. Crea una nueva consulta y pega el contenido completo de `schema.sql`. Ejecuta la consulta para crear la estructura.
 3. (Opcional) Ejecuta el contenido de `seed.sql` para cargar un conjunto mínimo de configuración, un portal público y datos de prueba.
 4. Ajusta el valor de `portal_base_url` dentro del seed para que coincida con el dominio donde alojas la aplicación. El marcador `{{slug}}` se reemplaza automáticamente por el identificador de cada portal cuando se generan enlaces.
+5. El seed incluye una solicitud de venta de muestra en `sale_requests` para validar que el dashboard reciba pedidos del portal público.
 
 ## Tablas principales
 

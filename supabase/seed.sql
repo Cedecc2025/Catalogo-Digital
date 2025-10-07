@@ -180,3 +180,32 @@ select
     'Ingreso por compra al proveedor principal.'
 from product;
 
+-- Solicitud de venta de ejemplo recibida desde el portal público.
+with portal as (
+    select id from public.portals where slug = 'catalogo-digital' limit 1
+)
+insert into public.sale_requests (
+    portal_id,
+    portal_slug,
+    name,
+    company,
+    email,
+    phone,
+    notes,
+    items,
+    total,
+    submitted_at
+)
+select
+    portal.id,
+    'catalogo-digital',
+    'María Fernández',
+    'Café Centro',
+    'maria.fernandez@cafecentro.cr',
+    '+506 8654 3210',
+    'Solicita cotización y tiempos de entrega para la próxima semana.',
+    '[{"product_id": "demo-2", "name": "Kit de empaque ecológico", "quantity": 3, "unit_price": 9500}]'::jsonb,
+    28500,
+    timezone('utc', now()) - interval '12 hours'
+from portal;
+

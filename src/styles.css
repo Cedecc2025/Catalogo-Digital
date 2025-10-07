@@ -841,6 +841,129 @@ tbody td {
     vertical-align: middle;
 }
 
+.sales-requests {
+    margin-top: 2.5rem;
+    padding: 1.6rem;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.sales-requests-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.sales-requests-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #f8fafc;
+}
+
+.sales-requests-hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    color: rgba(226, 232, 240, 0.65);
+}
+
+.sales-requests-counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgba(191, 219, 254, 0.95);
+}
+
+.sales-requests-table-wrapper {
+    overflow-x: auto;
+}
+
+.sales-requests-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 640px;
+}
+
+.sales-requests-table thead th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(148, 163, 184, 0.75);
+    border-bottom: 1px solid rgba(71, 85, 105, 0.5);
+}
+
+.sales-requests-table tbody td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(71, 85, 105, 0.4);
+    color: rgba(226, 232, 240, 0.85);
+    vertical-align: top;
+}
+
+.sales-request-client {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.sales-request-client strong {
+    font-size: 0.95rem;
+    color: #e2e8f0;
+}
+
+.sales-request-company {
+    font-size: 0.8rem;
+    color: rgba(148, 163, 184, 0.85);
+}
+
+.sales-request-products {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.sales-request-products span {
+    font-weight: 600;
+    color: #f8fafc;
+}
+
+.sales-request-products small {
+    font-size: 0.8rem;
+    color: rgba(148, 163, 184, 0.85);
+}
+
+.sales-request-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.sales-request-note {
+    display: inline-block;
+    padding: 0.35rem 0.6rem;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.15);
+    color: rgba(191, 219, 254, 0.95);
+    font-size: 0.75rem;
+    max-width: 260px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
 .clients-header,
 .inventory-header,
 .settings-header {
@@ -2275,6 +2398,14 @@ body.client-portal-body {
         justify-content: flex-start;
     }
 
+    .sales-requests {
+        padding: 1.25rem;
+    }
+
+    .sales-requests-table {
+        min-width: 520px;
+    }
+
     .clients-actions,
     .inventory-header,
     .settings-header,
@@ -2344,6 +2475,20 @@ body.client-portal-body {
 
     .dashboard-tabs {
         justify-content: center;
+    }
+
+    .sales-requests-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .sales-requests-counter {
+        align-self: flex-start;
+    }
+
+    .sales-requests-table {
+        min-width: 100%;
     }
 
     .catalog-table {

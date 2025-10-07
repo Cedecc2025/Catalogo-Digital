@@ -274,6 +274,33 @@
                         </tbody>
                     </table>
                 </div>
+
+                <section class="sales-requests" aria-label="Solicitudes recibidas desde portales">
+                    <header class="sales-requests-header">
+                        <div>
+                            <h4 class="sales-requests-title">Solicitudes desde portales</h4>
+                            <p class="sales-requests-hint">Pedidos enviados por tus clientes desde los enlaces públicos.</p>
+                        </div>
+                        <span class="sales-requests-counter" id="saleRequestsCounter">0 solicitudes</span>
+                    </header>
+                    <div class="sales-requests-table-wrapper">
+                        <table class="sales-requests-table">
+                            <thead>
+                                <tr>
+                                    <th>Recibido</th>
+                                    <th>Cliente</th>
+                                    <th>Portal</th>
+                                    <th>Productos</th>
+                                    <th>Total</th>
+                                    <th>Contacto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesRequestsTable">
+                                <tr><td colspan="6" style="text-align: center;">No hay solicitudes recibidas desde el portal</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </section>
 
             <section class="dashboard-panel hidden" data-dashboard-panel="clients" aria-label="Gestión de clientes">
