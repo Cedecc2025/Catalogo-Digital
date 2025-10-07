@@ -531,6 +531,22 @@ function getPortalProducts(portal) {
     });
 }
 
+function normalizeUrlToRuntimeOrigin(urlInstance) {
+    if (!(urlInstance instanceof URL)) {
+        return '';
+    }
+
+    const runtimeOrigin = window.location.origin;
+    const runtimeProtocol = window.location.protocol;
+
+    if (urlInstance.origin !== runtimeOrigin) {
+        urlInstance.protocol = runtimeProtocol;
+        urlInstance.host = window.location.host;
+    }
+
+    return urlInstance.toString();
+}
+
 function buildPortalLink(slug) {
     if (!slug) return '';
 
@@ -544,28 +560,33 @@ function buildPortalLink(slug) {
             const templateFilled = baseSetting.replace(slugTokenReplacer, encodedSlug);
 
             try {
-                return new URL(templateFilled).toString();
+                const interpretedUrl = new URL(templateFilled, window.location.origin);
+                return normalizeUrlToRuntimeOrigin(interpretedUrl);
             } catch (error) {
-                try {
-                    return new URL(templateFilled, window.location.origin).toString();
-                } catch (innerError) {
-                    console.warn('No se pudo interpretar la URL completa configurada para portales.', innerError);
-                    return templateFilled;
-                }
+                console.warn('No se pudo interpretar la URL completa configurada para portales.', error);
+                return templateFilled;
             }
         }
 
         try {
             const url = new URL(baseSetting, window.location.origin);
             url.searchParams.set('portal', slug);
-            return url.toString();
+            return normalizeUrlToRuntimeOrigin(url);
         } catch (error) {
             console.warn('No se pudo interpretar la URL base configurada para portales.', error);
 
             if (/^https?:\/\//i.test(baseSetting)) {
                 const hasQuery = baseSetting.includes('?');
                 const separator = hasQuery ? '&' : '?';
-                return `${baseSetting}${separator}portal=${encodedSlug}`;
+                const candidate = `${baseSetting}${separator}portal=${encodedSlug}`;
+
+                try {
+                    const candidateUrl = new URL(candidate, window.location.origin);
+                    return normalizeUrlToRuntimeOrigin(candidateUrl);
+                } catch (secondaryError) {
+                    console.warn('No se pudo normalizar la URL absoluta del portal.', secondaryError);
+                    return candidate;
+                }
             }
         }
     }
