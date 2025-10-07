@@ -2758,6 +2758,7 @@ async function processSaleRequest(requestId) {
         .eq('id', request.id);
 
     if (updateError) {
+        console.error('No se pudo actualizar la solicitud procesada en Supabase:', updateError);
         await loadDashboardDataFromSupabase();
         throw new Error('La venta se registró, pero no se pudo actualizar el estado de la solicitud.');
     }

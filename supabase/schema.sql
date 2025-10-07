@@ -249,6 +249,26 @@ create table if not exists public.sale_requests (
 );
 
 alter table public.sale_requests
+    add column if not exists total numeric(14, 2) default 0;
+
+alter table public.sale_requests
+    add column if not exists status_class text default 'pending';
+
+alter table public.sale_requests
+    add column if not exists processed_at timestamptz;
+
+alter table public.sale_requests
+    add column if not exists processed_by uuid references auth.users (id) on delete set null;
+
+alter table public.sale_requests
+    add column if not exists sale_id uuid references public.sales (id) on delete set null;
+
+alter table public.sale_requests
+    alter column total set default 0,
+    alter column status set default 'Pendiente',
+    alter column status_class set default 'pending';
+
+alter table public.sale_requests
     enable row level security;
 
 drop policy if exists "Sale requests can be submitted anonymously" on public.sale_requests;
