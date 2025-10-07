@@ -28,12 +28,16 @@ create table if not exists public.clients (
 alter table public.clients
     enable row level security;
 
-create policy if not exists "Clients are readable by authenticated users"
+drop policy if exists "Clients are readable by authenticated users" on public.clients;
+
+create policy "Clients are readable by authenticated users"
     on public.clients
     for select
     using (auth.role() = 'authenticated');
 
-create policy if not exists "Clients are manageable by authenticated users"
+drop policy if exists "Clients are manageable by authenticated users" on public.clients;
+
+create policy "Clients are manageable by authenticated users"
     on public.clients
     for all
     using (auth.role() = 'authenticated')
@@ -65,12 +69,16 @@ create table if not exists public.portals (
 alter table public.portals
     enable row level security;
 
-create policy if not exists "Portals are publicly readable"
+drop policy if exists "Portals are publicly readable" on public.portals;
+
+create policy "Portals are publicly readable"
     on public.portals
     for select
     using (true);
 
-create policy if not exists "Portals are manageable by authenticated users"
+drop policy if exists "Portals are manageable by authenticated users" on public.portals;
+
+create policy "Portals are manageable by authenticated users"
     on public.portals
     for all
     using (auth.role() = 'authenticated')
@@ -101,12 +109,16 @@ create table if not exists public.products (
 alter table public.products
     enable row level security;
 
-create policy if not exists "Products are publicly readable"
+drop policy if exists "Products are publicly readable" on public.products;
+
+create policy "Products are publicly readable"
     on public.products
     for select
     using (true);
 
-create policy if not exists "Products are manageable by authenticated users"
+drop policy if exists "Products are manageable by authenticated users" on public.products;
+
+create policy "Products are manageable by authenticated users"
     on public.products
     for all
     using (auth.role() = 'authenticated')
@@ -135,12 +147,16 @@ create table if not exists public.sales (
 alter table public.sales
     enable row level security;
 
-create policy if not exists "Sales are readable by authenticated users"
+drop policy if exists "Sales are readable by authenticated users" on public.sales;
+
+create policy "Sales are readable by authenticated users"
     on public.sales
     for select
     using (auth.role() = 'authenticated');
 
-create policy if not exists "Sales are manageable by authenticated users"
+drop policy if exists "Sales are manageable by authenticated users" on public.sales;
+
+create policy "Sales are manageable by authenticated users"
     on public.sales
     for all
     using (auth.role() = 'authenticated')
@@ -164,12 +180,16 @@ create table if not exists public.inventory_adjustments (
 alter table public.inventory_adjustments
     enable row level security;
 
-create policy if not exists "Inventory adjustments are readable by authenticated users"
+drop policy if exists "Inventory adjustments are readable by authenticated users" on public.inventory_adjustments;
+
+create policy "Inventory adjustments are readable by authenticated users"
     on public.inventory_adjustments
     for select
     using (auth.role() = 'authenticated');
 
-create policy if not exists "Inventory adjustments are manageable by authenticated users"
+drop policy if exists "Inventory adjustments are manageable by authenticated users" on public.inventory_adjustments;
+
+create policy "Inventory adjustments are manageable by authenticated users"
     on public.inventory_adjustments
     for all
     using (auth.role() = 'authenticated')
@@ -189,12 +209,16 @@ create table if not exists public.settings (
 alter table public.settings
     enable row level security;
 
-create policy if not exists "Settings are readable by authenticated users"
+drop policy if exists "Settings are readable by authenticated users" on public.settings;
+
+create policy "Settings are readable by authenticated users"
     on public.settings
     for select
     using (auth.role() = 'authenticated');
 
-create policy if not exists "Settings are manageable by authenticated users"
+drop policy if exists "Settings are manageable by authenticated users" on public.settings;
+
+create policy "Settings are manageable by authenticated users"
     on public.settings
     for all
     using (auth.role() = 'authenticated')
@@ -220,12 +244,16 @@ create table if not exists public.sale_requests (
 alter table public.sale_requests
     enable row level security;
 
-create policy if not exists "Sale requests can be submitted anonymously"
+drop policy if exists "Sale requests can be submitted anonymously" on public.sale_requests;
+
+create policy "Sale requests can be submitted anonymously"
     on public.sale_requests
     for insert
     with check (true);
 
-create policy if not exists "Sale requests are readable by authenticated users"
+drop policy if exists "Sale requests are readable by authenticated users" on public.sale_requests;
+
+create policy "Sale requests are readable by authenticated users"
     on public.sale_requests
     for select
     using (auth.role() = 'authenticated');
