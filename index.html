@@ -3,11 +3,606 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Catálogo Digital PyME</title>
-    <link rel="stylesheet" href="./src/styles/global.css" />
+    <title>Catálogo Digital</title>
+    <link rel="stylesheet" href="src/styles.css" />
 </head>
 <body>
-    <div id="appRoot"></div>
-    <script type="module" src="./src/scripts/main.js"></script>
+    <main class="page">
+        <section class="auth-card" data-section="auth">
+            <header class="auth-header">
+                <h1 class="auth-title">Catálogo Digital</h1>
+                <p class="auth-subtitle">Inicia sesión o crea una cuenta para continuar</p>
+            </header>
+
+            <nav class="auth-tabs" aria-label="Selecciona un formulario">
+                <button class="auth-tab active" type="button" data-target="loginForm">Iniciar sesión</button>
+                <button class="auth-tab" type="button" data-target="registerForm">Crear cuenta</button>
+            </nav>
+
+            <form id="loginForm" class="auth-form" autocomplete="on">
+                <label class="form-label" for="loginEmail">Correo electrónico</label>
+                <input class="form-input" type="email" id="loginEmail" name="email" placeholder="tu@negocio.com" required />
+
+                <label class="form-label" for="loginPassword">Contraseña</label>
+                <input class="form-input" type="password" id="loginPassword" name="password" placeholder="••••••••" minlength="6" required />
+
+                <button class="form-submit" type="submit">Entrar</button>
+                <p class="form-feedback" role="status" data-feedback-for="login"></p>
+            </form>
+
+            <form id="registerForm" class="auth-form hidden" autocomplete="on">
+                <label class="form-label" for="registerEmail">Correo electrónico</label>
+                <input class="form-input" type="email" id="registerEmail" name="email" placeholder="tu@negocio.com" required />
+
+                <label class="form-label" for="registerPassword">Contraseña</label>
+                <input class="form-input" type="password" id="registerPassword" name="password" placeholder="Mínimo 6 caracteres" minlength="6" required />
+
+                <label class="form-label" for="registerPasswordConfirm">Confirmar contraseña</label>
+                <input class="form-input" type="password" id="registerPasswordConfirm" name="passwordConfirm" placeholder="Repite la contraseña" minlength="6" required />
+
+                <button class="form-submit" type="submit">Crear cuenta</button>
+                <p class="form-feedback" role="status" data-feedback-for="register"></p>
+            </form>
+        </section>
+
+        <section class="dashboard hidden" data-section="dashboard">
+            <header class="dashboard-header">
+                <div>
+                    <h2 class="dashboard-title">Panel de Control</h2>
+                    <p class="dashboard-subtitle">Administra tu negocio y catálogo en un solo lugar</p>
+                </div>
+                <div class="dashboard-actions">
+                    <span class="user-pill" data-user-email>Invitado</span>
+                    <button class="logout-button" type="button" id="logoutButton">Cerrar sesión</button>
+                </div>
+            </header>
+
+            <nav class="dashboard-tabs" aria-label="Secciones del panel">
+                <button class="dashboard-tab active" type="button" data-dashboard-tab="overview">Resumen</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="catalog">Catálogo</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="sales">Ventas</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="clients">Clientes</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="inventory">Inventario</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="client-portals">Portales cliente</button>
+                <button class="dashboard-tab" type="button" data-dashboard-tab="settings">Configuración</button>
+            </nav>
+
+            <section class="dashboard-panel" data-dashboard-panel="overview">
+                <section class="stats-grid" aria-label="Indicadores principales">
+                    <article class="stat-card">
+                        <h3 class="stat-label">Ventas Totales</h3>
+                        <p class="stat-value" id="statTotalSales">₡0</p>
+                        <p class="stat-hint">Últimos 30 días</p>
+                    </article>
+                    <article class="stat-card gradient-2">
+                        <h3 class="stat-label">Clientes</h3>
+                        <p class="stat-value" id="statTotalClients">0</p>
+                        <p class="stat-hint">Activos en tu catálogo</p>
+                    </article>
+                    <article class="stat-card gradient-3">
+                        <h3 class="stat-label">Productos</h3>
+                        <p class="stat-value" id="statTotalProducts">0</p>
+                        <p class="stat-hint">Inventario disponible</p>
+                    </article>
+                    <article class="stat-card gradient-4">
+                        <h3 class="stat-label">Pedidos Hoy</h3>
+                        <p class="stat-value" id="statTodayOrders">0</p>
+                        <p class="stat-hint">Actualizado al momento</p>
+                    </article>
+                </section>
+
+                <section class="dashboard-table" aria-label="Últimas ventas">
+                    <header class="table-header">
+                        <h3 class="section-subtitle">Últimas Ventas</h3>
+                        <span class="table-hint">Se muestran los últimos 5 movimientos registrados</span>
+                    </header>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Cliente</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentSalesTable">
+                                <tr><td colspan="4" style="text-align: center;">No hay ventas</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="catalog" aria-label="Catálogo de productos">
+                <header class="catalog-header">
+                    <div>
+                        <h3 class="section-subtitle">Catálogo de productos</h3>
+                        <p class="catalog-hint">Consulta la disponibilidad, precios y estado de tus productos</p>
+                    </div>
+                    <div class="catalog-actions">
+                        <span class="catalog-counter" id="catalogProductsTotal">0 productos</span>
+                        <button class="catalog-add-button" type="button" id="addProductButton">Agregar producto</button>
+                    </div>
+                </header>
+
+                <form id="addProductForm" class="catalog-form hidden" autocomplete="off">
+                    <div class="catalog-form-grid">
+                        <label class="catalog-form-field">
+                            <span>Nombre del producto</span>
+                            <input type="text" name="name" placeholder="Ej. Caja de chocolates" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Categoría</span>
+                            <input type="text" name="category" placeholder="Ej. Dulces" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Empresa / portal</span>
+                            <select name="portalId" id="productPortalSelect" required>
+                                <option value="" disabled selected>Selecciona una empresa</option>
+                            </select>
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>URL de imagen</span>
+                            <input type="url" name="image" placeholder="https://..." inputmode="url" />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Precio</span>
+                            <input type="number" name="price" min="0" step="0.01" placeholder="₡0.00" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Inventario</span>
+                            <input type="number" name="stock" min="0" step="1" placeholder="0" required />
+                        </label>
+                        <label class="catalog-form-field">
+                            <span>Estado</span>
+                            <select name="status" required>
+                                <option value="Disponible" selected>Disponible</option>
+                                <option value="Bajo stock">Bajo stock</option>
+                                <option value="Requiere reposición">Requiere reposición</option>
+                                <option value="Agotado">Agotado</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="catalog-form-actions">
+                        <button type="submit" class="catalog-form-submit">Guardar producto</button>
+                        <button type="button" class="catalog-form-cancel" id="cancelAddProduct">Cancelar</button>
+                    </div>
+                    <p class="catalog-form-feedback" role="status" data-feedback="add-product"></p>
+                </form>
+
+                <div class="catalog-table-wrapper">
+                    <table class="catalog-table">
+                        <thead>
+                            <tr>
+                                <th>Imagen</th>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Empresa</th>
+                                <th>Precio</th>
+                                <th>Inventario</th>
+                                <th>Estado</th>
+                                <th class="catalog-actions-header">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="catalogProductsTable">
+                            <tr><td colspan="8" style="text-align: center;">No hay productos en el catálogo</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="sales" aria-label="Gestión de ventas">
+                <header class="sales-header">
+                    <div>
+                        <h3 class="section-subtitle">Módulo de ventas</h3>
+                        <p class="sales-hint">Registra nuevas ventas y consulta el historial de movimientos</p>
+                    </div>
+                    <div class="sales-actions">
+                        <div class="sales-indicator" role="status">
+                            <span class="sales-indicator-label">Ventas registradas</span>
+                            <strong id="salesTotalCount">0</strong>
+                        </div>
+                        <div class="sales-indicator" role="status">
+                            <span class="sales-indicator-label">Monto total</span>
+                            <strong id="salesTotalAmount">₡0</strong>
+                        </div>
+                        <button class="sales-add-button" type="button" id="addSaleButton">Registrar venta</button>
+                    </div>
+                </header>
+
+                <form id="addSaleForm" class="sales-form hidden" autocomplete="off">
+                    <div class="sales-form-grid">
+                        <label class="sales-form-field">
+                            <span>Cliente</span>
+                            <input type="text" name="client" placeholder="Nombre del cliente" required />
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Producto</span>
+                            <select name="productId" id="saleProductSelect" required>
+                                <option value="" disabled selected>Selecciona un producto</option>
+                            </select>
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Cantidad</span>
+                            <input type="number" name="quantity" id="saleQuantity" min="1" step="1" value="1" required />
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Precio unitario</span>
+                            <input type="number" name="unitPrice" id="saleUnitPrice" min="0" step="0.01" placeholder="₡0.00" required />
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Método de pago</span>
+                            <select name="paymentMethod" id="salePaymentMethod" required>
+                                <option value="Efectivo" selected>Efectivo</option>
+                                <option value="Tarjeta">Tarjeta</option>
+                                <option value="Transferencia">Transferencia</option>
+                                <option value="Sinpe">Sinpe</option>
+                            </select>
+                        </label>
+                        <label class="sales-form-field">
+                            <span>Notas</span>
+                            <textarea name="notes" id="saleNotes" rows="1" placeholder="Observaciones adicionales"></textarea>
+                        </label>
+                    </div>
+                    <div class="sales-form-summary">
+                        <span>Total estimado</span>
+                        <strong id="saleTotalPreview">₡0</strong>
+                    </div>
+                    <div class="sales-form-actions">
+                        <button type="submit" class="sales-form-submit">Guardar venta</button>
+                        <button type="button" class="sales-form-cancel" id="cancelAddSale">Cancelar</button>
+                    </div>
+                    <p class="sales-form-feedback" role="status" data-feedback="add-sale"></p>
+                </form>
+
+                <div class="sales-table-wrapper">
+                    <table class="sales-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Total</th>
+                                <th>Método</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesHistoryTable">
+                            <tr><td colspan="7" style="text-align: center;">No hay ventas registradas</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <section class="sales-requests" aria-label="Solicitudes recibidas desde portales">
+                    <header class="sales-requests-header">
+                        <div>
+                            <h4 class="sales-requests-title">Solicitudes desde portales</h4>
+                            <p class="sales-requests-hint">Pedidos enviados por tus clientes desde los enlaces públicos.</p>
+                        </div>
+                        <span class="sales-requests-counter" id="saleRequestsCounter">0 solicitudes</span>
+                    </header>
+                    <div class="sales-requests-table-wrapper">
+                        <table class="sales-requests-table">
+                            <caption class="sr-only">Solicitudes generadas desde los portales públicos</caption>
+                            <thead>
+                                <tr>
+                                    <th>Recibido</th>
+                                    <th>Cliente</th>
+                                    <th>Portal</th>
+                                    <th>Productos</th>
+                                    <th>Total</th>
+                                    <th>Contacto</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesRequestsTable">
+                                <tr><td colspan="8" style="text-align: center;">No hay solicitudes recibidas desde el portal</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="sales-requests-feedback" role="status" data-feedback="sale-requests"></p>
+                </section>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="clients" aria-label="Gestión de clientes">
+                <header class="clients-header">
+                    <div>
+                        <h3 class="section-subtitle">Clientes</h3>
+                        <p class="clients-hint">Administra el directorio de clientes para tus ventas y seguimientos</p>
+                    </div>
+                    <div class="clients-actions">
+                        <span class="clients-counter" id="clientsCounter">0 clientes</span>
+                        <button class="clients-add-button" type="button" id="addClientButton">Agregar cliente</button>
+                    </div>
+                </header>
+
+                <form id="clientForm" class="client-form hidden" autocomplete="off">
+                    <div class="client-form-header">
+                        <h4 id="clientFormTitle">Nuevo cliente</h4>
+                        <button type="button" class="client-form-close" id="cancelClientForm" aria-label="Cerrar formulario">&times;</button>
+                    </div>
+                    <div class="client-form-grid">
+                        <label class="client-form-field">
+                            <span>Nombre completo</span>
+                            <input type="text" name="name" placeholder="Ej. Distribuidora El Roble" required />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Correo electrónico</span>
+                            <input type="email" name="email" placeholder="contacto@empresa.com" />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Teléfono</span>
+                            <input type="tel" name="phone" placeholder="+506 8888-8888" />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Empresa</span>
+                            <input type="text" name="company" placeholder="Nombre de la empresa" />
+                        </label>
+                        <label class="client-form-field">
+                            <span>Estado</span>
+                            <select name="status" required>
+                                <option value="Activo" selected>Activo</option>
+                                <option value="Inactivo">Inactivo</option>
+                                <option value="Prospecto">Prospecto</option>
+                            </select>
+                        </label>
+                        <label class="client-form-field wide">
+                            <span>Notas</span>
+                            <textarea name="notes" rows="2" placeholder="Comentarios adicionales"></textarea>
+                        </label>
+                    </div>
+                    <div class="client-form-actions">
+                        <button type="submit" class="client-form-submit" id="clientFormSubmit">Guardar cliente</button>
+                    </div>
+                    <p class="client-form-feedback" role="status" data-feedback="client-form"></p>
+                </form>
+
+                <div class="clients-table-wrapper">
+                    <table class="clients-table">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Contacto</th>
+                                <th>Empresa</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsTableBody">
+                            <tr><td colspan="5" style="text-align: center;">No hay clientes registrados</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="inventory" aria-label="Control de inventario">
+                <header class="inventory-header">
+                    <div>
+                        <h3 class="section-subtitle">Inventario</h3>
+                        <p class="inventory-hint">Ajusta existencias y consulta los movimientos recientes</p>
+                    </div>
+                    <button class="inventory-toggle-button" type="button" id="toggleInventoryForm">Registrar ajuste</button>
+                </header>
+
+                <form id="inventoryAdjustForm" class="inventory-form hidden" autocomplete="off">
+                    <div class="inventory-form-grid">
+                        <label class="inventory-form-field">
+                            <span>Producto</span>
+                            <select name="productId" id="inventoryProductSelect" required>
+                                <option value="" disabled selected>Selecciona un producto</option>
+                            </select>
+                        </label>
+                        <label class="inventory-form-field">
+                            <span>Tipo de ajuste</span>
+                            <select name="type" id="inventoryType" required>
+                                <option value="entrada" selected>Entrada</option>
+                                <option value="salida">Salida</option>
+                                <option value="ajuste">Ajuste manual</option>
+                            </select>
+                        </label>
+                        <label class="inventory-form-field">
+                            <span>Cantidad</span>
+                            <input type="number" name="quantity" id="inventoryQuantity" min="1" step="1" placeholder="0" required />
+                        </label>
+                        <label class="inventory-form-field wide">
+                            <span>Motivo</span>
+                            <textarea name="reason" rows="2" placeholder="Ej. Reposición de proveedor"></textarea>
+                        </label>
+                    </div>
+                    <div class="inventory-form-actions">
+                        <button type="submit" class="inventory-form-submit">Guardar ajuste</button>
+                        <button type="button" class="inventory-form-cancel" id="cancelInventoryForm">Cancelar</button>
+                    </div>
+                    <p class="inventory-form-feedback" role="status" data-feedback="inventory-adjust"></p>
+                </form>
+
+                <div class="inventory-table-wrapper">
+                    <table class="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Stock</th>
+                                <th>Estado</th>
+                                <th>Ajustes rápidos</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTableBody">
+                            <tr><td colspan="5" style="text-align: center;">No hay productos registrados</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <section class="inventory-history" aria-label="Historial de inventario">
+                    <header class="inventory-history-header">
+                        <h4>Historial de movimientos</h4>
+                        <span class="inventory-history-hint">Se registran los últimos ajustes realizados</span>
+                    </header>
+                    <div class="inventory-history-table-wrapper">
+                        <table class="inventory-history-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Producto</th>
+                                    <th>Tipo</th>
+                                    <th>Cantidad</th>
+                                    <th>Motivo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryHistoryTable">
+                                <tr><td colspan="5" style="text-align: center;">No hay movimientos registrados</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="client-portals" aria-label="Portales públicos del catálogo">
+                <header class="portal-header">
+                    <div>
+                        <h3 class="section-subtitle">Portales para clientes</h3>
+                        <p class="portal-hint">Comparte enlaces personalizados para que tus clientes consulten el catálogo y soliciten pedidos.</p>
+                    </div>
+                    <button class="portal-toggle-button" type="button" id="togglePortalForm">Crear portal</button>
+                </header>
+
+                <section class="portal-share" aria-label="Enlace público seleccionado">
+                    <div class="portal-share-summary">
+                        <h4 class="portal-share-title" data-portal-summary="name">Selecciona un portal</h4>
+                        <p class="portal-share-stats" data-portal-summary="products">0 productos publicados</p>
+                        <p class="portal-share-contact" data-portal-summary="contact">Actualiza tu información de contacto para compartirla aquí.</p>
+                    </div>
+                    <div class="portal-share-actions">
+                        <label class="sr-only" for="portalShareInput">Enlace público del portal</label>
+                        <input type="url" id="portalShareInput" class="portal-share-input" readonly placeholder="Selecciona un portal para generar el enlace" />
+                        <button type="button" class="portal-share-button" id="copyPortalLink">Copiar enlace</button>
+                    </div>
+                </section>
+                <p class="portal-share-feedback" role="status" data-feedback="portal-share"></p>
+
+                <form id="clientPortalForm" class="portal-form hidden" autocomplete="off">
+                    <div class="portal-form-grid">
+                        <label class="portal-form-field">
+                            <span>Nombre comercial</span>
+                            <input type="text" name="name" placeholder="Ej. Distribuidora El Roble" required />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Slug (enlace)</span>
+                            <input type="text" name="slug" placeholder="ej. distribuidora-el-roble" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Correo de contacto</span>
+                            <input type="email" name="contactEmail" placeholder="ventas@empresa.com" required />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Teléfono</span>
+                            <input type="tel" name="contactPhone" placeholder="+506 0000-0000" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Color principal</span>
+                            <input type="color" name="accentColor" value="#4f46e5" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Título destacado</span>
+                            <input type="text" name="heroTitle" placeholder="Mensaje principal para tus clientes" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Subtítulo</span>
+                            <input type="text" name="heroSubtitle" placeholder="Descripción breve de tu catálogo" />
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Descripción breve</span>
+                            <textarea name="description" rows="2" placeholder="Resumen del catálogo que verán los clientes"></textarea>
+                        </label>
+                        <label class="portal-form-field">
+                            <span>Imagen de portada (URL)</span>
+                            <input type="url" name="bannerImage" placeholder="https://..." inputmode="url" />
+                        </label>
+                        <label class="portal-form-field wide">
+                            <span>Términos o notas (uno por línea)</span>
+                            <textarea name="terms" rows="3" placeholder="Ej. Pedidos sujetos a confirmación&#10;Entrega gratuita sobre ₡100&nbsp;000"></textarea>
+                        </label>
+                    </div>
+                    <div class="portal-form-actions">
+                        <button type="submit" class="portal-form-submit">Guardar portal</button>
+                        <button type="button" class="portal-form-cancel" id="cancelPortalForm">Cancelar</button>
+                    </div>
+                    <p class="portal-form-feedback" role="status" data-feedback="portal-form"></p>
+                </form>
+
+                <section class="portal-grid" id="clientPortalList" aria-live="polite">
+                    <p class="portal-empty">No hay portales registrados.</p>
+                </section>
+            </section>
+
+            <section class="dashboard-panel hidden" data-dashboard-panel="settings" aria-label="Configuración de la empresa">
+                <header class="settings-header">
+                    <div>
+                        <h3 class="section-subtitle">Configuración</h3>
+                        <p class="settings-hint">Personaliza la información de tu empresa y la apariencia del panel</p>
+                    </div>
+                </header>
+
+                <form id="settingsForm" class="settings-form" autocomplete="off">
+                    <div class="settings-form-grid">
+                        <label class="settings-form-field">
+                            <span>Nombre de la empresa</span>
+                            <input type="text" name="companyName" placeholder="Mi empresa" required />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Correo de contacto</span>
+                            <input type="email" name="companyEmail" placeholder="ventas@empresa.com" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Teléfono</span>
+                            <input type="tel" name="companyPhone" placeholder="+506 0000-0000" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Dirección</span>
+                            <input type="text" name="companyAddress" placeholder="Ubicación de la empresa" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Lema o mensaje</span>
+                            <input type="text" name="tagline" placeholder="Mensaje que se mostrará en el panel" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Color principal</span>
+                            <input type="color" name="themeColor" id="themeColor" value="#6366f1" />
+                        </label>
+                        <label class="settings-form-field wide">
+                            <span>Logo o imagen</span>
+                            <input type="url" name="logoUrl" placeholder="https://mi-logo.com/logo.png" />
+                        </label>
+                        <label class="settings-form-field wide">
+                            <span>URL completa para portales públicos</span>
+                            <input type="text" name="portalBaseUrl" placeholder="https://miempresa.com/client-portal.html?portal={{slug}}" />
+                            <span class="field-note">Incluye <code>{{slug}}</code> para insertar el identificador del portal en la liga que compartirás; si lo omites se añadirá automáticamente como parámetro <code>?portal=</code>.</span>
+                        </label>
+                    </div>
+                    <div class="settings-form-actions">
+                        <button type="submit" class="settings-form-submit">Guardar configuración</button>
+                    </div>
+                    <p class="settings-form-feedback" role="status" data-feedback="settings"></p>
+                </form>
+
+                <section class="settings-preview" aria-label="Resumen de configuración">
+                    <h4 class="settings-preview-title">Vista previa</h4>
+                    <div class="settings-preview-card">
+                        <div class="settings-preview-logo" data-settings-preview="logo">CD</div>
+                        <div class="settings-preview-info">
+                            <strong data-settings-preview="name">Catálogo Digital</strong>
+                            <span data-settings-preview="tagline">Administra tu negocio en un solo lugar</span>
+                            <span data-settings-preview="contact">ventas@empresa.com · +506 0000-0000</span>
+                        </div>
+                    </div>
+                </section>
+            </section>
+        </section>
+    </main>
+
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>
