@@ -536,21 +536,30 @@ function normalizeUrlToRuntimeOrigin(urlInstance) {
         return '';
     }
 
-    const runtimeOrigin = window.location.origin;
-    const runtimeProtocol = window.location.protocol;
+    const runtimeUrl = new URL(window.location.href);
+    const sanitizedPath = runtimeUrl.pathname.replace(/index\.html?$/i, '');
+    const basePath = sanitizedPath.endsWith('/') ? sanitizedPath : `${sanitizedPath}/`;
+    const trimmedBase = basePath.replace(/^\/+/, '');
+    const trimmedCandidate = urlInstance.pathname.replace(/^\/+/, '');
 
-    if (urlInstance.origin !== runtimeOrigin) {
-        urlInstance.protocol = runtimeProtocol;
-        urlInstance.host = window.location.host;
+    let relativePath = trimmedCandidate;
+
+    if (trimmedBase && trimmedCandidate.startsWith(trimmedBase)) {
+        relativePath = trimmedCandidate.slice(trimmedBase.length);
     }
 
-    return urlInstance.toString();
+    const normalized = new URL(relativePath || '.', `${runtimeUrl.origin}${basePath}`);
+    normalized.search = urlInstance.search;
+    normalized.hash = urlInstance.hash;
+
+    return normalized.toString();
 }
 
 function buildPortalLink(slug) {
     if (!slug) return '';
 
     const baseSetting = currentData?.settings?.portalBaseUrl?.trim();
+    const runtimeHref = window.location.href;
     if (baseSetting) {
         const slugTokenDetector = /{{\s*slug\s*}}|{\s*slug\s*}/i;
         const encodedSlug = encodeURIComponent(slug);
@@ -560,7 +569,7 @@ function buildPortalLink(slug) {
             const templateFilled = baseSetting.replace(slugTokenReplacer, encodedSlug);
 
             try {
-                const interpretedUrl = new URL(templateFilled, window.location.origin);
+                const interpretedUrl = new URL(templateFilled, runtimeHref);
                 return normalizeUrlToRuntimeOrigin(interpretedUrl);
             } catch (error) {
                 console.warn('No se pudo interpretar la URL completa configurada para portales.', error);
@@ -569,7 +578,7 @@ function buildPortalLink(slug) {
         }
 
         try {
-            const url = new URL(baseSetting, window.location.origin);
+            const url = new URL(baseSetting, runtimeHref);
             url.searchParams.set('portal', slug);
             return normalizeUrlToRuntimeOrigin(url);
         } catch (error) {
@@ -581,7 +590,7 @@ function buildPortalLink(slug) {
                 const candidate = `${baseSetting}${separator}portal=${encodedSlug}`;
 
                 try {
-                    const candidateUrl = new URL(candidate, window.location.origin);
+                    const candidateUrl = new URL(candidate, runtimeHref);
                     return normalizeUrlToRuntimeOrigin(candidateUrl);
                 } catch (secondaryError) {
                     console.warn('No se pudo normalizar la URL absoluta del portal.', secondaryError);
