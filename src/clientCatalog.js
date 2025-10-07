@@ -1,7 +1,12 @@
 import { supabase } from './supabaseClient.js';
+import { resolveMediaUrl } from './mediaHelpers.js';
 let activePortal = null;
 let portalProducts = [];
 const selectedItems = new Map();
+
+const DEFAULT_HERO_IMAGE =
+    'https://images.unsplash.com/photo-1456406644174-8ddd4cd52a06?auto=format&fit=crop&w=1200&q=80';
+const PRODUCT_PLACEHOLDER = '🛒';
 
 const elements = {};
 
@@ -24,6 +29,66 @@ function cacheElements() {
     elements.summaryTotal = document.querySelector('[data-portal-total]');
     elements.requestForm = document.getElementById('clientRequestForm');
     elements.requestFeedback = document.querySelector('[data-feedback="client-request"]');
+}
+
+function ensureHeroImageFallback() {
+    const hero = elements.portalHeroImage;
+    if (!hero || hero.dataset.fallbackBound === 'true') {
+        return;
+    }
+
+    hero.dataset.fallbackBound = 'true';
+    hero.addEventListener('error', () => {
+        if (!hero || hero.dataset.usingFallback === 'true') {
+            return;
+        }
+
+        hero.dataset.usingFallback = 'true';
+        hero.src = DEFAULT_HERO_IMAGE;
+        hero.classList.remove('hidden');
+    });
+}
+
+function setHeroImage(url) {
+    const hero = elements.portalHeroImage;
+    if (!hero) {
+        return;
+    }
+
+    ensureHeroImageFallback();
+
+    const finalUrl = resolveMediaUrl(url) || DEFAULT_HERO_IMAGE;
+    hero.dataset.usingFallback = finalUrl === DEFAULT_HERO_IMAGE ? 'true' : 'false';
+    hero.src = finalUrl;
+    hero.classList.remove('hidden');
+}
+
+function applyProductImageFallbacks() {
+    const images = elements.productGrid?.querySelectorAll('.client-product-media img');
+    images?.forEach((img) => {
+        if (img.dataset.fallbackBound === 'true') {
+            return;
+        }
+
+        img.dataset.fallbackBound = 'true';
+        img.addEventListener('error', () => {
+            if (img.dataset.replaced === 'true') {
+                return;
+            }
+
+            img.dataset.replaced = 'true';
+            const parent = img.parentElement;
+            img.remove();
+
+            if (parent && !parent.querySelector('.client-product-placeholder')) {
+                const placeholder = document.createElement('span');
+                placeholder.setAttribute('aria-hidden', 'true');
+                placeholder.className = 'client-product-placeholder';
+                placeholder.textContent = PRODUCT_PLACEHOLDER;
+                parent.appendChild(placeholder);
+            }
+        });
+    });
 }
 
 function normalizeStockValue(value) {
@@ -152,14 +217,7 @@ function updateHero(portal) {
         elements.portalContactPhone.classList.toggle('hidden', !portal.contactPhone);
     }
 
-    if (elements.portalHeroImage) {
-        if (portal.bannerImage) {
-            elements.portalHeroImage.src = portal.bannerImage;
-            elements.portalHeroImage.classList.remove('hidden');
-        } else {
-            elements.portalHeroImage.src = 'https://images.unsplash.com/photo-1456406644174-8ddd4cd52a06?auto=format&fit=crop&w=1200&q=80';
-        }
-    }
+    setHeroImage(portal.bannerImageUrl || portal.bannerImage);
 
     document.title = portal.name ? `${portal.name} · Catálogo` : 'Catálogo público';
 }
@@ -195,7 +253,8 @@ function renderProductGrid(products = []) {
             const buttonAttributes = !selected && outOfStock ? 'disabled aria-disabled="true"' : 'aria-disabled="false"';
             const description = escapeHtml(product.shortDescription || product.description || '');
             const name = escapeHtml(product.name || 'Producto');
-            const image = product.image ? escapeHtml(product.image) : '';
+            const imageUrl = product.imageUrl || resolveMediaUrl(product.image);
+            const image = imageUrl ? escapeHtml(imageUrl) : '';
             const stockLabel = formatStockLabel(stock);
             const stockMarkup = stockLabel
                 ? `<span class="client-product-stock${outOfStock ? ' depleted' : ''}">Stock: ${escapeHtml(stockLabel)}</span>`
@@ -207,7 +266,11 @@ function renderProductGrid(products = []) {
                 typeof stock === 'number' ? stock : ''
             }">
                     <div class="client-product-media">
-                        ${image ? `<img src="${image}" alt="${name}" loading="lazy" />` : '<span aria-hidden="true" class="client-product-placeholder">🛒</span>'}
+                        ${
+                            image
+                                ? `<img src="${image}" alt="${name}" loading="lazy" />`
+                                : `<span aria-hidden="true" class="client-product-placeholder">${PRODUCT_PLACEHOLDER}</span>`
+                        }
                     </div>
                     <div class="client-product-info">
                         <h3>${name}</h3>
@@ -228,6 +291,8 @@ function renderProductGrid(products = []) {
     elements.productGrid.innerHTML = markup;
     const totalLabel = products.length === 1 ? '1 producto' : `${products.length} productos`;
     setElementText(elements.productCount, totalLabel);
+
+    applyProductImageFallbacks();
 }
 
 function updateProductButtons() {
@@ -618,6 +683,7 @@ function normalizePortalRecord(record, slug) {
 
     const productIds = parseArrayField(record.product_ids ?? record.productIds);
     const terms = parseArrayField(record.terms ?? record.terms_conditions ?? record.conditions);
+    const bannerImage = record.banner_image ?? record.bannerImage ?? record.hero_image ?? '';
 
     return {
         id: record.id ?? slug,
@@ -629,7 +695,8 @@ function normalizePortalRecord(record, slug) {
         heroSubtitle: record.hero_subtitle ?? record.heroSubtitle ?? record.description ?? '',
         contactEmail: record.contact_email ?? record.email ?? '',
         contactPhone: record.contact_phone ?? record.phone ?? '',
-        bannerImage: record.banner_image ?? record.bannerImage ?? record.hero_image ?? '',
+        bannerImage,
+        bannerImageUrl: resolveMediaUrl(bannerImage),
         terms,
         productIds,
         heroVideo: record.hero_video ?? record.heroVideo ?? '',
@@ -696,12 +763,14 @@ async function fetchProductsFromSupabase(portal) {
 
         return data.map((item) => {
             const stock = normalizeStockValue(item.stock);
+            const rawImage = item.image || item.image_url || item.thumbnail || '';
             return {
                 id: item.id,
                 name: item.name || item.title || 'Producto',
                 category: item.category || item.category_name || '',
                 price: Number(item.price ?? item.unit_price ?? 0) || 0,
-                image: item.image || item.image_url || item.thumbnail || '',
+                image: rawImage,
+                imageUrl: resolveMediaUrl(rawImage),
                 shortDescription: item.short_description || item.description || '',
                 description: item.description || '',
                 stock: typeof stock === 'number' ? stock : null,
