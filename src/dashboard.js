@@ -613,7 +613,7 @@ async function loadDashboardDataFromSupabase() {
             fetchTableData('sales'),
             fetchTableData('sale_requests', { order: { column: 'submitted_at', ascending: false } }),
             fetchTableData('clients'),
-            fetchTableData('inventory_adjustments'),
+            fetchTableData('inventory_adjustments', { order: { column: 'created_at', ascending: false } }),
             fetchTableData('portals'),
             fetchTableData('settings')
         ]);

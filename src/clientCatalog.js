@@ -26,6 +26,64 @@ function cacheElements() {
     elements.requestFeedback = document.querySelector('[data-feedback="client-request"]');
 }
 
+function normalizeStockValue(value) {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return null;
+    }
+
+    return Math.max(0, Math.trunc(numeric));
+}
+
+function findPortalProduct(productId) {
+    return portalProducts.find((item) => String(item.id) === String(productId));
+}
+
+function getAvailableStock(productOrId) {
+    const product =
+        typeof productOrId === 'object' && productOrId !== null
+            ? productOrId
+            : findPortalProduct(productOrId);
+
+    if (!product) {
+        return null;
+    }
+
+    const normalized = normalizeStockValue(product.stock);
+    return typeof normalized === 'number' ? normalized : null;
+}
+
+function formatStockLabel(stock) {
+    if (typeof stock !== 'number') {
+        return '';
+    }
+
+    if (stock <= 0) {
+        return 'Agotado';
+    }
+
+    const suffix = stock === 1 ? 'disponible' : 'disponibles';
+    return `${stock} ${suffix}`;
+}
+
+function isProductOutOfStock(product) {
+    const stock = getAvailableStock(product);
+    return typeof stock === 'number' && stock <= 0;
+}
+
+function escapeSelector(value) {
+    const stringValue = String(value ?? '');
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+        return CSS.escape(stringValue);
+    }
+
+    return stringValue.replace(/([\0-\x1f\x7f"'\\\[\]\{\}<>#%&~])/g, '\\$1');
+}
+
 const currencyFormatter = new Intl.NumberFormat('es-CR', {
     style: 'currency',
     currency: 'CRC',
@@ -129,15 +187,25 @@ function renderProductGrid(products = []) {
 
     const markup = products
         .map((product) => {
+            const stock = getAvailableStock(product);
             const selected = selectedItems.has(String(product.id));
-            const buttonLabel = selected ? 'En solicitud' : 'Agregar a la solicitud';
-            const buttonState = selected ? 'selected' : 'idle';
+            const outOfStock = typeof stock === 'number' && stock <= 0;
+            const buttonLabel = !selected && outOfStock ? 'Agotado' : selected ? 'En solicitud' : 'Agregar a la solicitud';
+            const buttonState = !selected && outOfStock ? 'out' : selected ? 'selected' : 'idle';
+            const buttonAttributes = !selected && outOfStock ? 'disabled aria-disabled="true"' : 'aria-disabled="false"';
             const description = escapeHtml(product.shortDescription || product.description || '');
             const name = escapeHtml(product.name || 'Producto');
             const image = product.image ? escapeHtml(product.image) : '';
+            const stockLabel = formatStockLabel(stock);
+            const stockMarkup = stockLabel
+                ? `<span class="client-product-stock${outOfStock ? ' depleted' : ''}">Stock: ${escapeHtml(stockLabel)}</span>`
+                : '';
+            const productId = escapeHtml(String(product.id));
 
             return `
-                <article class="client-portal-product-card${selected ? ' selected' : ''}" data-product-id="${product.id}">
+                <article class="client-portal-product-card${selected ? ' selected' : ''}" data-product-id="${productId}" data-stock="${
+                typeof stock === 'number' ? stock : ''
+            }">
                     <div class="client-product-media">
                         ${image ? `<img src="${image}" alt="${name}" loading="lazy" />` : '<span aria-hidden="true" class="client-product-placeholder">🛒</span>'}
                     </div>
@@ -146,8 +214,11 @@ function renderProductGrid(products = []) {
                         <p>${description || 'Producto disponible para pedidos especiales.'}</p>
                     </div>
                     <div class="client-product-footer">
-                        <span class="client-product-price">${formatCurrency(product.price)}</span>
-                        <button type="button" class="client-product-button" data-action="toggle-product" data-product-id="${product.id}" data-state="${buttonState}">${buttonLabel}</button>
+                        <div class="client-product-pricing">
+                            <span class="client-product-price">${formatCurrency(product.price)}</span>
+                            ${stockMarkup}
+                        </div>
+                        <button type="button" class="client-product-button" data-action="toggle-product" data-product-id="${productId}" data-state="${buttonState}" ${buttonAttributes}>${buttonLabel}</button>
                     </div>
                 </article>
             `;
@@ -163,9 +234,34 @@ function updateProductButtons() {
     const buttons = elements.productGrid?.querySelectorAll('[data-action="toggle-product"]');
     buttons?.forEach((button) => {
         const productId = button.dataset.productId;
-        const isSelected = selectedItems.has(String(productId));
-        button.dataset.state = isSelected ? 'selected' : 'idle';
-        button.textContent = isSelected ? 'En solicitud' : 'Agregar a la solicitud';
+        if (!productId) {
+            return;
+        }
+
+        const selection = selectedItems.get(String(productId));
+        const product = selection?.product || findPortalProduct(productId);
+        const isSelected = Boolean(selection);
+        const stock = getAvailableStock(product);
+        const outOfStock = typeof stock === 'number' && stock <= 0;
+        const atLimit = typeof stock === 'number' && isSelected && selection.quantity >= stock;
+
+        let label = 'Agregar a la solicitud';
+        let state = 'idle';
+        let disableButton = false;
+
+        if (isSelected) {
+            label = atLimit ? 'Cantidad máxima' : 'En solicitud';
+            state = 'selected';
+        } else if (outOfStock) {
+            label = 'Agotado';
+            state = 'out';
+            disableButton = true;
+        }
+
+        button.textContent = label;
+        button.dataset.state = state;
+        button.disabled = disableButton;
+        button.setAttribute('aria-disabled', disableButton ? 'true' : 'false');
         button.closest('.client-portal-product-card')?.classList.toggle('selected', isSelected);
     });
 }
@@ -187,17 +283,30 @@ function renderSelectionSummary() {
         .map(({ product, quantity }) => {
             const name = escapeHtml(product.name || 'Producto');
             const category = escapeHtml(product.category || 'Producto');
+            const stock = getAvailableStock(product);
+            const stockLabel = formatStockLabel(stock);
+            const availabilityMarkup = stockLabel
+                ? `<small class="client-summary-availability${typeof stock === 'number' && stock <= 0 ? ' depleted' : ''}">Stock disponible: ${escapeHtml(
+                      stockLabel
+                  )}</small>`
+                : '';
+            const maxAttr = typeof stock === 'number' ? `max="${stock}"` : '';
+            const atLimit = typeof stock === 'number' && quantity >= stock;
+            const incrementAttrs = atLimit ? 'disabled aria-disabled="true"' : 'aria-disabled="false"';
+            const productId = escapeHtml(String(product.id));
+
             return `
-            <li class="client-summary-item" data-product-id="${product.id}">
+            <li class="client-summary-item" data-product-id="${productId}">
                 <div class="client-summary-details">
                     <strong>${name}</strong>
                     <span>${formatCurrency(product.price)} · ${category}</span>
+                    ${availabilityMarkup}
                 </div>
                 <div class="client-summary-actions">
-                    <button type="button" class="client-summary-button" data-action="decrement" data-product-id="${product.id}">−</button>
-                    <input type="number" min="1" value="${quantity}" class="client-summary-quantity" data-action="quantity" data-product-id="${product.id}" />
-                    <button type="button" class="client-summary-button" data-action="increment" data-product-id="${product.id}">+</button>
-                    <button type="button" class="client-summary-remove" data-action="remove" data-product-id="${product.id}" aria-label="Quitar ${name}">×</button>
+                    <button type="button" class="client-summary-button" data-action="decrement" data-product-id="${productId}">−</button>
+                    <input type="number" min="1" ${maxAttr} value="${quantity}" class="client-summary-quantity" data-action="quantity" data-product-id="${productId}" />
+                    <button type="button" class="client-summary-button" data-action="increment" data-product-id="${productId}" ${incrementAttrs}>+</button>
+                    <button type="button" class="client-summary-remove" data-action="remove" data-product-id="${productId}" aria-label="Quitar ${name}">×</button>
                 </div>
             </li>
         `;
@@ -220,49 +329,111 @@ function setRequestFeedback(message = '', type = '') {
 }
 
 function addItem(productId) {
-    const product = portalProducts.find((item) => String(item.id) === String(productId));
+    const product = findPortalProduct(productId);
     if (!product) return;
 
-    const existing = selectedItems.get(String(productId));
-    if (existing) {
-        selectedItems.set(String(productId), {
-            product,
-            quantity: existing.quantity + 1
-        });
-    } else {
-        selectedItems.set(String(productId), {
-            product,
-            quantity: 1
-        });
+    if (isProductOutOfStock(product)) {
+        setRequestFeedback('Este producto está agotado en este portal.', 'error');
+        return;
     }
 
+    const stock = getAvailableStock(product);
+    const key = String(productId);
+    const existing = selectedItems.get(key);
+    const currentQuantity = existing?.quantity ?? 0;
+    const nextQuantity = currentQuantity + 1;
+
+    if (typeof stock === 'number' && nextQuantity > stock) {
+        const quantityLabel = stock === 1 ? '1 unidad' : `${stock} unidades`;
+        setRequestFeedback(`Solo quedan ${quantityLabel} disponibles de ${product.name}.`, 'error');
+        return;
+    }
+
+    selectedItems.set(key, {
+        product,
+        quantity: nextQuantity
+    });
+
+    setRequestFeedback();
     renderSelectionSummary();
     updateProductButtons();
 }
 
-function removeItem(productId) {
+function removeItem(productId, { silent = false } = {}) {
     selectedItems.delete(String(productId));
     renderSelectionSummary();
     updateProductButtons();
+    if (!silent) {
+        setRequestFeedback();
+    }
 }
 
-function setItemQuantity(productId, quantity) {
-    const normalized = Number(quantity);
+function setItemQuantity(productId, quantity, sourceElement) {
+    const normalized = Math.trunc(Number(quantity));
     if (Number.isNaN(normalized) || normalized <= 0) {
         removeItem(productId);
         return;
     }
 
-    const existing = selectedItems.get(String(productId));
+    const key = String(productId);
+    const existing = selectedItems.get(key);
     if (!existing) return;
 
-    selectedItems.set(String(productId), {
-        product: existing.product,
-        quantity: normalized
+    const product = existing.product;
+    const stock = getAvailableStock(product);
+
+    if (typeof stock === 'number' && stock <= 0) {
+        selectedItems.delete(key);
+        renderSelectionSummary();
+        updateProductButtons();
+        setRequestFeedback(`El producto ${product.name} ya no tiene existencias.`, 'error');
+        return;
+    }
+
+    let finalQuantity = normalized;
+    let feedbackMessage = null;
+
+    if (typeof stock === 'number' && normalized > stock) {
+        finalQuantity = stock;
+        feedbackMessage = `Solo quedan ${stock === 1 ? '1 unidad' : `${stock} unidades`} disponibles de ${product.name}.`;
+    }
+
+    selectedItems.set(key, {
+        product,
+        quantity: finalQuantity
     });
 
     updateSummaryTotal();
     updateProductButtons();
+
+    const container =
+        sourceElement?.closest('.client-summary-item') ||
+        elements.summaryList?.querySelector(`[data-product-id="${escapeSelector(productId)}"]`);
+
+    if (container) {
+        const quantityInput = container.querySelector('.client-summary-quantity');
+        if (quantityInput) {
+            quantityInput.value = String(finalQuantity);
+            if (typeof stock === 'number') {
+                quantityInput.max = String(stock);
+            } else {
+                quantityInput.removeAttribute('max');
+            }
+        }
+
+        const incrementButton = container.querySelector('button[data-action="increment"]');
+        if (incrementButton) {
+            const atLimit = typeof stock === 'number' && finalQuantity >= stock;
+            incrementButton.disabled = atLimit;
+            incrementButton.setAttribute('aria-disabled', atLimit ? 'true' : 'false');
+        }
+    }
+
+    if (feedbackMessage) {
+        setRequestFeedback(feedbackMessage, 'error');
+    } else {
+        setRequestFeedback();
+    }
 }
 
 function handleProductGridClick(event) {
@@ -271,6 +442,10 @@ function handleProductGridClick(event) {
 
     const productId = button.dataset.productId;
     if (!productId) return;
+
+    if (button.disabled) {
+        return;
+    }
 
     if (selectedItems.has(String(productId))) {
         removeItem(productId);
@@ -284,6 +459,10 @@ function handleSummaryClick(event) {
     const productId = target.dataset.productId;
     if (!productId) return;
 
+    if (target.matches('button') && target.disabled) {
+        return;
+    }
+
     const action = target.dataset.action;
     switch (action) {
         case 'increment':
@@ -295,7 +474,7 @@ function handleSummaryClick(event) {
             if (current.quantity <= 1) {
                 removeItem(productId);
             } else {
-                setItemQuantity(productId, current.quantity - 1);
+                setItemQuantity(productId, current.quantity - 1, target);
             }
             break;
         }
@@ -303,7 +482,7 @@ function handleSummaryClick(event) {
             removeItem(productId);
             break;
         case 'quantity':
-            setItemQuantity(productId, target.value);
+            setItemQuantity(productId, target.value, target);
             break;
         default:
             break;
@@ -318,6 +497,24 @@ async function handleRequestSubmit(event) {
         return;
     }
 
+    const selections = Array.from(selectedItems.values());
+    const invalidSelection = selections.find(({ product, quantity }) => {
+        const stock = getAvailableStock(product);
+        return typeof stock === 'number' && quantity > stock;
+    });
+
+    if (invalidSelection) {
+        const stock = getAvailableStock(invalidSelection.product) ?? 0;
+        const quantityLabel = stock === 1 ? '1 unidad' : `${stock} unidades`;
+        setRequestFeedback(
+            `Ajusta la cantidad de ${invalidSelection.product.name}; solo quedan ${quantityLabel} disponibles.`,
+            'error'
+        );
+        renderSelectionSummary();
+        updateProductButtons();
+        return;
+    }
+
     const formData = new FormData(elements.requestForm);
     const payload = {
         portal_slug: activePortal.slug,
@@ -327,13 +524,13 @@ async function handleRequestSubmit(event) {
         email: String(formData.get('email') || '').trim(),
         phone: String(formData.get('phone') || '').trim(),
         notes: String(formData.get('notes') || '').trim(),
-        items: Array.from(selectedItems.values()).map(({ product, quantity }) => ({
+        items: selections.map(({ product, quantity }) => ({
             product_id: product.id,
             name: product.name,
             quantity,
             unit_price: product.price
         })),
-        total: Array.from(selectedItems.values()).reduce((sum, { product, quantity }) => sum + Number(product.price || 0) * quantity, 0)
+        total: selections.reduce((sum, { product, quantity }) => sum + Number(product.price || 0) * quantity, 0)
     };
 
     if (!payload.name || !payload.email) {
@@ -497,16 +694,22 @@ async function fetchProductsFromSupabase(portal) {
             return [];
         }
 
-        return data.map((item) => ({
-            id: item.id,
-            name: item.name || item.title || 'Producto',
-            category: item.category || item.category_name || '',
-            price: Number(item.price ?? item.unit_price ?? 0) || 0,
-            image: item.image || item.image_url || item.thumbnail || '',
-            shortDescription: item.short_description || item.description || '',
-            description: item.description || '',
-            portalId: item.portal_id ?? portal.id ?? null
-        }));
+        return data.map((item) => {
+            const stock = normalizeStockValue(item.stock);
+            return {
+                id: item.id,
+                name: item.name || item.title || 'Producto',
+                category: item.category || item.category_name || '',
+                price: Number(item.price ?? item.unit_price ?? 0) || 0,
+                image: item.image || item.image_url || item.thumbnail || '',
+                shortDescription: item.short_description || item.description || '',
+                description: item.description || '',
+                stock: typeof stock === 'number' ? stock : null,
+                status: item.status || '',
+                statusClass: item.status_class || '',
+                portalId: item.portal_id ?? portal.id ?? null
+            };
+        });
     } catch (error) {
         console.error('Error inesperado al consultar Supabase:', error);
         return [];
