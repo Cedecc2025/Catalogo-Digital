@@ -238,7 +238,14 @@ create table if not exists public.sale_requests (
     notes text,
     items jsonb default '[]'::jsonb,
     total numeric(14, 2) default 0,
-    submitted_at timestamptz default timezone('utc', now())
+    submitted_at timestamptz default timezone('utc', now()),
+    status text default 'Pendiente',
+    status_class text default 'pending',
+    processed_at timestamptz,
+    processed_by uuid references auth.users (id) on delete set null,
+    sale_id uuid references public.sales (id) on delete set null,
+    created_at timestamptz default timezone('utc', now()),
+    updated_at timestamptz default timezone('utc', now())
 );
 
 alter table public.sale_requests
@@ -257,6 +264,14 @@ create policy "Sale requests are readable by authenticated users"
     on public.sale_requests
     for select
     using (auth.role() = 'authenticated');
+
+drop policy if exists "Sale requests are manageable by authenticated users" on public.sale_requests;
+
+create policy "Sale requests are manageable by authenticated users"
+    on public.sale_requests
+    for update
+    using (auth.role() = 'authenticated')
+    with check (auth.role() = 'authenticated');
 
 -- ------------------------------------------------------------
 --  Helper triggers to keep updated_at in sync
@@ -291,5 +306,9 @@ create trigger inventory_adjustments_set_updated_at
 
 create trigger settings_set_updated_at
     before update on public.settings
+    for each row execute procedure public.set_updated_at();
+
+create trigger sale_requests_set_updated_at
+    before update on public.sale_requests
     for each row execute procedure public.set_updated_at();
 

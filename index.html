@@ -285,6 +285,7 @@
                     </header>
                     <div class="sales-requests-table-wrapper">
                         <table class="sales-requests-table">
+                            <caption class="sr-only">Solicitudes generadas desde los portales públicos</caption>
                             <thead>
                                 <tr>
                                     <th>Recibido</th>
@@ -293,13 +294,16 @@
                                     <th>Productos</th>
                                     <th>Total</th>
                                     <th>Contacto</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="salesRequestsTable">
-                                <tr><td colspan="6" style="text-align: center;">No hay solicitudes recibidas desde el portal</td></tr>
+                                <tr><td colspan="8" style="text-align: center;">No hay solicitudes recibidas desde el portal</td></tr>
                             </tbody>
                         </table>
                     </div>
+                    <p class="sales-requests-feedback" role="status" data-feedback="sale-requests"></p>
                 </section>
             </section>
 

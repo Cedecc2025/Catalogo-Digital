@@ -32,6 +32,7 @@ const DASHBOARD_SELECTORS = {
     salesHistoryTable: '#salesHistoryTable',
     saleRequestsCounter: '#saleRequestsCounter',
     saleRequestsTable: '#salesRequestsTable',
+    saleRequestsFeedback: '[data-feedback="sale-requests"]',
     clientsCounter: '#clientsCounter',
     clientsTableBody: '#clientsTableBody',
     addClientButton: '#addClientButton',
@@ -92,6 +93,30 @@ let hasLoadedDashboardData = false;
 let lastLoadedUserId = null;
 let realtimeChannel = null;
 let pendingRealtimeRefresh = false;
+const processingSaleRequestIds = new Set();
+
+const SALE_REQUEST_PROCESSED_STATUSES = new Set([
+    'procesada',
+    'procesado',
+    'convertida',
+    'convertido',
+    'completada',
+    'completado',
+    'cerrada',
+    'cerrado',
+    'finalizada',
+    'finalizado'
+]);
+
+const SALE_REQUEST_PENDING_STATUSES = new Set([
+    'pendiente',
+    'pendientes',
+    'nueva',
+    'nuevo',
+    'en revisión',
+    'sin atender',
+    'por atender'
+]);
 
 function getDefaultSettings() {
     return cloneData(defaultDashboardState.settings || {});
@@ -129,6 +154,15 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function escapeSelector(value) {
+    const stringValue = String(value ?? '');
+    if (typeof window !== 'undefined' && window.CSS?.escape) {
+        return window.CSS.escape(stringValue);
+    }
+
+    return stringValue.replace(/([\.\#\[\]\:\,>~\+\*\^\$\|\(\)\s])/g, '\\$1');
 }
 
 function getElement(selector) {
@@ -214,6 +248,60 @@ function parseJsonItems(items) {
     return [];
 }
 
+function normalizeSaleRequestStatus(record = {}) {
+    const rawStatus = typeof record.status === 'string' ? record.status.trim() : '';
+    if (rawStatus) {
+        return rawStatus;
+    }
+
+    return record.processedAt || record.saleId ? 'Procesada' : 'Pendiente';
+}
+
+function getSaleRequestStatusClass(status) {
+    const normalized = (status || '').toLowerCase();
+
+    if (SALE_REQUEST_PROCESSED_STATUSES.has(normalized)) {
+        return 'success';
+    }
+
+    if (normalized === 'pendiente' || normalized === 'en revisión' || normalized === 'nueva' || normalized === 'nuevo') {
+        return 'warning';
+    }
+
+    if (normalized === 'rechazada' || normalized === 'cancelada' || normalized === 'denegada') {
+        return 'danger';
+    }
+
+    return 'info';
+}
+
+function isSaleRequestProcessed(record = {}) {
+    const status = normalizeSaleRequestStatus(record);
+    const normalized = status.toLowerCase();
+
+    if (SALE_REQUEST_PROCESSED_STATUSES.has(normalized)) {
+        return true;
+    }
+
+    if (SALE_REQUEST_PENDING_STATUSES.has(normalized)) {
+        return false;
+    }
+
+    return Boolean(record.processedAt || record.saleId);
+}
+
+function getSaleRequestStatusInfo(record = {}) {
+    const status = normalizeSaleRequestStatus(record);
+    const statusClass = record.statusClass ?? getSaleRequestStatusClass(status);
+    const processed = isSaleRequestProcessed({ ...record, status });
+
+    return {
+        label: status,
+        statusClass,
+        processed
+    };
+}
+
 function getSaleStatusClass(status) {
     const normalized = (status || '').toLowerCase();
     switch (normalized) {
@@ -295,7 +383,7 @@ function normalizeSaleRequestRecord(record) {
         unitPrice: Number(item.unit_price ?? item.unitPrice ?? item.price ?? 0) || 0
     }));
 
-    return {
+    const normalized = {
         id: record.id,
         portalId: record.portal_id ?? record.portalId ?? null,
         portalSlug: record.portal_slug ?? record.portalSlug ?? '',
@@ -306,8 +394,20 @@ function normalizeSaleRequestRecord(record) {
         notes: record.notes ?? record.comments ?? '',
         total: Number(record.total ?? record.amount ?? 0) || 0,
         submittedAt: record.submitted_at ?? record.created_at ?? new Date().toISOString(),
+        status: record.status ?? record.state ?? '',
+        statusClass: record.status_class ?? record.statusClass ?? '',
+        processedAt: record.processed_at ?? record.processedAt ?? null,
+        processedBy: record.processed_by ?? record.processedBy ?? null,
+        saleId: record.sale_id ?? record.saleId ?? null,
         items
     };
+
+    const statusInfo = getSaleRequestStatusInfo(normalized);
+    normalized.status = statusInfo.label;
+    normalized.statusClass = statusInfo.statusClass;
+    normalized.processed = statusInfo.processed;
+
+    return normalized;
 }
 
 function normalizeClientRecord(record) {
@@ -788,7 +888,21 @@ function renderClientPortalCards(portals = []) {
                 }
                 return request.portalSlug === portal.slug;
             });
-            const requestLabel = portalRequests.length === 1 ? '1 solicitud' : `${portalRequests.length} solicitudes`;
+            const pendingRequests = portalRequests.filter(
+                (request) => !(request.processed ?? isSaleRequestProcessed(request))
+            );
+            let requestLabel = 'Sin solicitudes';
+            if (pendingRequests.length > 0) {
+                requestLabel =
+                    pendingRequests.length === 1
+                        ? '1 solicitud pendiente'
+                        : `${pendingRequests.length} solicitudes pendientes`;
+            } else if (portalRequests.length > 0) {
+                requestLabel =
+                    portalRequests.length === 1
+                        ? '1 solicitud procesada'
+                        : `${portalRequests.length} solicitudes procesadas`;
+            }
             const accentColor = portal.accentColor || '#4f46e5';
 
             return `
@@ -1086,6 +1200,9 @@ function calculateTodayOrders(sales, saleRequests = []) {
     }).length;
 
     const todayRequests = saleRequests.filter((request) => {
+        if (request.processed ?? isSaleRequestProcessed(request)) {
+            return false;
+        }
         const submittedAt = new Date(request.submittedAt);
         return submittedAt.toDateString() === today.toDateString();
     }).length;
@@ -1230,9 +1347,10 @@ function renderSalesHistoryTable(sales) {
             const productsSummary = summarizeSaleProducts(Array.isArray(sale.items) ? sale.items : []);
             const paymentMethod = escapeHtml(sale.paymentMethod ?? '—');
             const statusLabel = escapeHtml(sale.status ?? '—');
+            const saleIdAttribute = sale.id ? ` data-sale-id="${escapeHtml(String(sale.id))}"` : '';
 
             return `
-                <tr>
+                <tr${saleIdAttribute}>
                     <td>${formatDate(sale.date)}</td>
                     <td>${clientName}</td>
                     <td>${productsSummary.label}</td>
@@ -1271,21 +1389,40 @@ function renderSaleRequestsTable(requests) {
     const tableBody = getElement(DASHBOARD_SELECTORS.saleRequestsTable);
     const counter = getElement(DASHBOARD_SELECTORS.saleRequestsCounter);
 
+    const total = requests.length;
+    const pending = requests.filter((request) => !(request.processed ?? isSaleRequestProcessed(request))).length;
+    const processed = total - pending;
+
     if (counter) {
-        const total = requests.length;
-        counter.textContent = total === 1 ? '1 solicitud' : `${total} solicitudes`;
+        if (pending > 0) {
+            const baseLabel = pending === 1 ? '1 solicitud pendiente' : `${pending} solicitudes pendientes`;
+            counter.textContent = processed > 0 ? `${baseLabel} · ${processed} procesadas` : baseLabel;
+        } else if (processed > 0) {
+            counter.textContent = processed === 1 ? '1 solicitud procesada' : `${processed} solicitudes procesadas`;
+        } else {
+            counter.textContent = 'Sin solicitudes recibidas';
+        }
     }
 
     if (!tableBody) return;
 
     if (!requests.length) {
         tableBody.innerHTML =
-            '<tr><td colspan="6" style="text-align: center;">No hay solicitudes recibidas desde el portal</td></tr>';
+            '<tr><td colspan="8" style="text-align: center;">No hay solicitudes recibidas desde el portal</td></tr>';
         return;
     }
 
     const rows = [...requests]
-        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+        .sort((a, b) => {
+            const aProcessed = a.processed ?? isSaleRequestProcessed(a);
+            const bProcessed = b.processed ?? isSaleRequestProcessed(b);
+            const processedDiff = Number(aProcessed) - Number(bProcessed);
+            if (processedDiff !== 0) {
+                return processedDiff;
+            }
+
+            return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+        })
         .map((request) => {
             const portal = findPortalById(request.portalId) || findPortalBySlug(request.portalSlug);
             const portalName = escapeHtml(portal?.name ?? request.portalSlug ?? 'Portal');
@@ -1297,6 +1434,23 @@ function renderSaleRequestsTable(requests) {
                 : '';
             const notesMarkup = request.notes
                 ? `<span class="sales-request-note" title="${escapeHtml(request.notes)}">${escapeHtml(request.notes)}</span>`
+                : '';
+            const statusInfo = getSaleRequestStatusInfo(request);
+            const isProcessed = statusInfo.processed;
+            const processedAtLabel = isProcessed && request.processedAt ? formatDateTime(request.processedAt) : '';
+            const actionMarkup = isProcessed
+                ? request.saleId
+                    ? `<button type="button" class="sales-request-action secondary" data-sale-request-action="view-sale" data-sale-request-id="${escapeHtml(
+                          String(request.id)
+                      )}" data-sale-id="${escapeHtml(String(request.saleId))}">Ver venta</button>`
+                    : '<span class="sales-request-action-label">Procesada</span>'
+                : `<button type="button" class="sales-request-action" data-sale-request-action="process" data-sale-request-id="${escapeHtml(
+                      String(request.id)
+                  )}">Procesar</button>`;
+
+            const statusBadge = `<span class="badge ${statusInfo.statusClass ?? ''}">${escapeHtml(statusInfo.label)}</span>`;
+            const statusDetails = processedAtLabel
+                ? `<small class="sales-request-status-date">${processedAtLabel}</small>`
                 : '';
 
             return `
@@ -1322,11 +1476,36 @@ function renderSaleRequestsTable(requests) {
                             ${notesMarkup}
                         </div>
                     </td>
+                    <td>
+                        <div class="sales-request-status">
+                            ${statusBadge}
+                            ${statusDetails}
+                        </div>
+                    </td>
+                    <td class="sales-request-actions">${actionMarkup}</td>
                 </tr>`;
         })
         .join('');
 
     tableBody.innerHTML = rows;
+}
+
+function highlightSaleRow(saleId) {
+    if (!saleId) return;
+
+    const tableBody = getElement(DASHBOARD_SELECTORS.salesHistoryTable);
+    if (!tableBody) return;
+
+    const selector = `[data-sale-id="${escapeSelector(saleId)}"]`;
+    const row = tableBody.querySelector(selector);
+    if (!row) return;
+
+    row.classList.add('sales-row-highlight');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    setTimeout(() => {
+        row.classList.remove('sales-row-highlight');
+    }, 2000);
 }
 
 function getClientStatusClass(status) {
@@ -2446,6 +2625,222 @@ async function handleAddSaleSubmit(event) {
     }
 }
 
+async function processSaleRequest(requestId) {
+    if (!supabaseClient) {
+        throw new Error('No se pudo conectar con la base de datos.');
+    }
+
+    const targetId = String(requestId || '');
+    const request = currentData.saleRequests.find((item) => String(item.id) === targetId);
+
+    if (!request) {
+        throw new Error('No se encontró la solicitud seleccionada.');
+    }
+
+    if (request.processed ?? isSaleRequestProcessed(request)) {
+        return {
+            status: 'info',
+            message: 'Esta solicitud ya fue procesada previamente.',
+            saleId: request.saleId ?? null
+        };
+    }
+
+    const items = Array.isArray(request.items) ? request.items : [];
+    if (!items.length) {
+        throw new Error('La solicitud no incluye productos para generar la venta.');
+    }
+
+    const normalizedItems = [];
+    const inventoryAdjustments = [];
+
+    for (const item of items) {
+        const productId = item.product_id ?? item.productId ?? item.id ?? null;
+        if (!productId) {
+            throw new Error('Se encontró un producto sin identificador en la solicitud.');
+        }
+
+        const product = currentData.products.find((candidate) => String(candidate.id) === String(productId));
+        if (!product) {
+            throw new Error('Un producto solicitado ya no está disponible en el catálogo.');
+        }
+
+        const quantityValue = Number(item.quantity ?? item.qty ?? 0);
+        const quantity = Math.max(1, Math.trunc(quantityValue));
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+            throw new Error(`La cantidad solicitada para ${product.name} no es válida.`);
+        }
+
+        const currentStock = Number(product.stock ?? 0);
+        if (quantity > currentStock) {
+            throw new Error(`No hay inventario suficiente para ${product.name}.`);
+        }
+
+        const unitPriceValue = Number(item.unitPrice ?? item.unit_price ?? item.price ?? product.price ?? 0);
+        const unitPrice = Number(Math.max(0, unitPriceValue).toFixed(2));
+
+        normalizedItems.push({
+            product_id: product.id,
+            productName: product.name,
+            quantity,
+            unitPrice
+        });
+
+        inventoryAdjustments.push({ product, quantity });
+    }
+
+    const saleTotal = Number(
+        normalizedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0).toFixed(2)
+    );
+
+    const clientRecord = await ensureClientExists(request.name);
+
+    const baseNotes = request.notes ? `Solicitud portal: ${request.notes}` : 'Generada desde portal de clientes.';
+
+    const salePayload = {
+        sale_date: new Date().toISOString(),
+        total: saleTotal,
+        status: 'Completado',
+        status_class: 'success',
+        payment_method: 'Portal',
+        notes: baseNotes,
+        client_id: clientRecord?.id ?? null,
+        client_name: request.name,
+        client_email: request.email || clientRecord?.email || null,
+        client_phone: request.phone || clientRecord?.phone || null,
+        items: normalizedItems
+    };
+
+    const { data: insertedSale, error: saleError } = await supabaseClient
+        .from('sales')
+        .insert(salePayload)
+        .select()
+        .single();
+
+    if (saleError) {
+        throw new Error('No se pudo registrar la venta generada desde la solicitud.');
+    }
+
+    try {
+        for (const adjustment of inventoryAdjustments) {
+            await persistInventoryChange(adjustment.product, -adjustment.quantity, {
+                type: 'Venta',
+                reason: `Solicitud portal ${request.portalSlug ?? ''}`.trim()
+            });
+        }
+    } catch (error) {
+        console.error('Error al ajustar inventario para la solicitud del portal:', error);
+        await loadDashboardDataFromSupabase();
+        throw new Error('La venta se registró, pero ocurrió un error al actualizar el inventario. Revisa el stock manualmente.');
+    }
+
+    let processedBy = null;
+    try {
+        const { data } = await supabaseClient.auth.getUser();
+        processedBy = data?.user?.id ?? null;
+    } catch (error) {
+        processedBy = null;
+    }
+
+    const processedAt = new Date().toISOString();
+
+    const updatePayload = {
+        status: 'Procesada',
+        status_class: 'success',
+        processed_at: processedAt,
+        processed_by: processedBy,
+        sale_id: insertedSale?.id ?? null,
+        total: saleTotal
+    };
+
+    const { error: updateError } = await supabaseClient
+        .from('sale_requests')
+        .update(updatePayload)
+        .eq('id', request.id);
+
+    if (updateError) {
+        await loadDashboardDataFromSupabase();
+        throw new Error('La venta se registró, pero no se pudo actualizar el estado de la solicitud.');
+    }
+
+    await loadDashboardDataFromSupabase();
+
+    return {
+        status: 'success',
+        message: 'Solicitud procesada correctamente y registrada como venta.',
+        saleId: insertedSale?.id ?? null
+    };
+}
+
+function handleSaleRequestsTableClick(event) {
+    const button = event.target.closest('button[data-sale-request-action]');
+    if (!button) return;
+
+    const action = button.dataset.saleRequestAction;
+    const requestId = button.dataset.saleRequestId;
+
+    if (!requestId) {
+        return;
+    }
+
+    if (action === 'process') {
+        if (processingSaleRequestIds.has(requestId)) {
+            return;
+        }
+
+        processingSaleRequestIds.add(requestId);
+
+        const originalLabel = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Procesando…';
+        setFeedback(DASHBOARD_SELECTORS.saleRequestsFeedback, 'Procesando solicitud…', 'info');
+
+        processSaleRequest(requestId)
+            .then((result) => {
+                if (result?.message && result?.status) {
+                    setFeedback(DASHBOARD_SELECTORS.saleRequestsFeedback, result.message, result.status);
+                } else {
+                    setFeedback(
+                        DASHBOARD_SELECTORS.saleRequestsFeedback,
+                        'Solicitud procesada correctamente.',
+                        'success'
+                    );
+                }
+
+                if (result?.saleId) {
+                    requestAnimationFrame(() => {
+                        highlightSaleRow(result.saleId);
+                    });
+                }
+            })
+            .catch((error) => {
+                console.error('No se pudo procesar la solicitud del portal:', error);
+                const message = error?.message ?? 'No se pudo procesar la solicitud. Intenta nuevamente.';
+                setFeedback(DASHBOARD_SELECTORS.saleRequestsFeedback, message, 'error');
+            })
+            .finally(() => {
+                processingSaleRequestIds.delete(requestId);
+                if (document.body.contains(button)) {
+                    button.disabled = false;
+                    button.textContent = originalLabel;
+                }
+            });
+
+        return;
+    }
+
+    if (action === 'view-sale') {
+        const saleId = button.dataset.saleId;
+        if (!saleId) {
+            return;
+        }
+
+        setActivePanel('sales');
+        requestAnimationFrame(() => {
+            highlightSaleRow(saleId);
+        });
+    }
+}
+
 function updateAddProductButtonState() {
     const button = getElement(DASHBOARD_SELECTORS.addProductButton);
     if (!button) return;
@@ -2944,6 +3339,7 @@ export function initDashboard({ supabase }) {
     const saleProductSelect = getElement(DASHBOARD_SELECTORS.saleProductSelect);
     const saleQuantityInput = getElement(DASHBOARD_SELECTORS.saleQuantityInput);
     const saleUnitPriceInput = getElement(DASHBOARD_SELECTORS.saleUnitPriceInput);
+    const saleRequestsTable = getElement(DASHBOARD_SELECTORS.saleRequestsTable);
 
     addSaleButton?.addEventListener('click', () => {
         toggleAddSaleForm(!isAddSaleFormVisible);
@@ -2957,6 +3353,7 @@ export function initDashboard({ supabase }) {
     saleProductSelect?.addEventListener('change', handleSaleProductChange);
     saleQuantityInput?.addEventListener('input', updateSaleTotalPreview);
     saleUnitPriceInput?.addEventListener('input', updateSaleTotalPreview);
+    saleRequestsTable?.addEventListener('click', handleSaleRequestsTableClick);
 
     const addClientButton = getElement(DASHBOARD_SELECTORS.addClientButton);
     const clientForm = getElement(DASHBOARD_SELECTORS.clientForm);

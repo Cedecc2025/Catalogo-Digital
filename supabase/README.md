@@ -25,13 +25,13 @@ Este directorio contiene los scripts SQL necesarios para aprovisionar la base de
 | `inventory_adjustments` | Movimientos de inventario para cada producto | `product_id`, `type`, `quantity`, `direction`, `reason` |
 | `settings` | Configuración general de la empresa y branding | `key`, `value` |
 | `portals` | Portales públicos compartibles | `slug`, `name`, `description`, `accent_color`, `terms`, `product_ids` |
-| `sale_requests` | Solicitudes enviadas desde el portal público | `portal_slug`, `name`, `email`, `items`, `total`, `submitted_at` |
+| `sale_requests` | Solicitudes enviadas desde el portal público | `portal_slug`, `name`, `email`, `items`, `total`, `submitted_at`, `status`, `status_class`, `processed_at`, `processed_by`, `sale_id` |
 
 ### Consideraciones de seguridad
 
 - Las tablas `products` y `portals` permiten lecturas públicas (`anon`) para que el portal de clientes pueda cargar información sin requerir autenticación.
 - El resto de operaciones (insertar, actualizar, eliminar) solo están habilitadas para usuarios autenticados (`auth.role() = 'authenticated'`).
-- Las solicitudes de venta (`sale_requests`) aceptan inserciones anónimas para permitir que cualquier cliente envíe su pedido.
+- Las solicitudes de venta (`sale_requests`) aceptan inserciones anónimas para permitir que cualquier cliente envíe su pedido y exponen campos de estado (`status`, `status_class`, `processed_at`, `processed_by`, `sale_id`) que el dashboard actualiza cuando conviertes la solicitud en una venta.
 
 ### Próximos pasos sugeridos
 

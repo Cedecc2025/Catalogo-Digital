@@ -194,7 +194,9 @@ insert into public.sale_requests (
     notes,
     items,
     total,
-    submitted_at
+    submitted_at,
+    status,
+    status_class
 )
 select
     portal.id,
@@ -206,6 +208,8 @@ select
     'Solicita cotización y tiempos de entrega para la próxima semana.',
     '[{"product_id": "demo-2", "name": "Kit de empaque ecológico", "quantity": 3, "unit_price": 9500}]'::jsonb,
     28500,
-    timezone('utc', now()) - interval '12 hours'
+    timezone('utc', now()) - interval '12 hours',
+    'Pendiente',
+    'pending'
 from portal;
 
