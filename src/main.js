@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient.js';
-import { initAuth } from './auth.js';
+import { initAuth, getStoredLocalSession, clearStoredLocalSession } from './auth.js';
 import { initDashboard, showDashboard, hideDashboard } from './dashboard.js';
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -16,22 +16,24 @@ window.addEventListener('DOMContentLoaded', async () => {
         const { data, error } = await supabase.auth.getSession();
         if (error) {
             console.error('Error al comprobar la sesión activa:', error.message);
-            hideDashboard();
-            return;
-        }
-
-        if (data?.session) {
+        } else if (data?.session) {
             await showDashboard(data.session);
-        } else {
-            hideDashboard();
+            return;
         }
     } catch (error) {
         console.error('Error inesperado al inicializar la sesión:', error);
+    }
+
+    const localSession = getStoredLocalSession();
+    if (localSession) {
+        await showDashboard(localSession);
+    } else {
         hideDashboard();
     }
 
     supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_OUT') {
+            clearStoredLocalSession();
             hideDashboard();
             const loginMessage = document.querySelector('[data-feedback-for="login"]');
             if (loginMessage) {

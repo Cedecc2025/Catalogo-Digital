@@ -25,7 +25,12 @@ export function getInitialDashboardData() {
             tagline: '',
             themeColor: '#6366f1',
             logoUrl: '',
-            portalBaseUrl: getDefaultPortalBaseUrl()
+            portalBaseUrl: getDefaultPortalBaseUrl(),
+            chatbotEnabled: false,
+            chatbotName: 'Asistente virtual',
+            chatbotWelcome:
+                'Hola, soy tu asistente virtual. Elige una pregunta frecuente o escríbeme para ayudarte.',
+            chatbotFaqs: []
         }
     };
 }

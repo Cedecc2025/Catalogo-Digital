@@ -1,4 +1,5 @@
 import { getInitialDashboardData } from './sampleData.js';
+import { getStoredLocalSession, clearStoredLocalSession } from './auth.js';
 
 const DASHBOARD_SELECTORS = {
     section: '[data-section="dashboard"]',
@@ -56,6 +57,9 @@ const DASHBOARD_SELECTORS = {
     settingsPreviewTagline: '[data-settings-preview="tagline"]',
     settingsPreviewContact: '[data-settings-preview="contact"]',
     settingsPreviewLogo: '[data-settings-preview="logo"]',
+    settingsChatbotList: '#chatbotFaqList',
+    settingsChatbotAddButton: '#addChatbotFaq',
+    settingsChatbotEmpty: '[data-chatbot-empty]',
     dashboardTitle: '.dashboard-title',
     dashboardSubtitle: '.dashboard-subtitle',
     portalShareInput: '#portalShareInput',
@@ -73,12 +77,52 @@ const DASHBOARD_SELECTORS = {
 };
 const defaultDashboardState = getInitialDashboardData();
 
+function parseBooleanFlag(value) {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        if (Number.isNaN(value)) {
+            return undefined;
+        }
+
+        if (value === 1) {
+            return true;
+        }
+
+        if (value === 0) {
+            return false;
+        }
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+
+        if (!normalized) {
+            return undefined;
+        }
+
+        if (['true', '1', 'yes', 'y', 'si', 'sí', 'on', 't'].includes(normalized)) {
+            return true;
+        }
+
+        if (['false', '0', 'no', 'n', 'off', 'f'].includes(normalized)) {
+            return false;
+        }
+    }
+
+    return undefined;
+}
+
 function cloneData(data) {
     return JSON.parse(JSON.stringify(data));
 }
 
 let currentData = cloneData(defaultDashboardState);
 let supabaseClient = null;
+let activeSupabaseUserId = null;
+let currentDataOwnerId = null;
 let activePanel = 'overview';
 let isAddProductFormVisible = false;
 let editingProductId = null;
@@ -117,35 +161,6 @@ const SALE_REQUEST_PENDING_STATUSES = new Set([
     'sin atender',
     'por atender'
 ]);
-
-function getDefaultSettings() {
-    return cloneData(defaultDashboardState.settings || {});
-}
-
-function mergeSettingsWithDefaults(settings = {}) {
-    const defaults = getDefaultSettings();
-    const merged = { ...defaults };
-
-    if (settings && typeof settings === 'object') {
-        Object.entries(settings).forEach(([key, value]) => {
-            merged[key] = value;
-        });
-    }
-
-    if (!merged.portalBaseUrl) {
-        merged.portalBaseUrl = defaults.portalBaseUrl || '';
-    }
-
-    if (typeof merged.portalBaseUrl === 'string') {
-        merged.portalBaseUrl = merged.portalBaseUrl.trim();
-    }
-
-    if (!merged.themeColor) {
-        merged.themeColor = defaults.themeColor || '#6366f1';
-    }
-
-    return merged;
-}
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -227,6 +242,224 @@ function parseArrayField(value) {
     }
 
     return [];
+}
+
+function parseKeywordList(value) {
+    const arrayValue = parseArrayField(value);
+    return arrayValue
+        .map((item) => String(item ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 10);
+}
+
+function normalizeChatbotFaqs(value) {
+    if (!value && value !== 0) {
+        return [];
+    }
+
+    let entries = value;
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            entries = parsed;
+        } catch (error) {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(entries)) {
+        return [];
+    }
+
+    return entries
+        .map((item) => {
+            if (!item || typeof item !== 'object') {
+                return null;
+            }
+
+            const question = String(item.question ?? '').trim();
+            const answer = String(item.answer ?? '').trim();
+            const keywords = parseKeywordList(item.keywords ?? item.tags ?? []);
+
+            if (!question || !answer) {
+                return null;
+            }
+
+            return {
+                question,
+                answer,
+                keywords
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 12);
+}
+
+function getDefaultSettings() {
+    return cloneData(defaultDashboardState.settings || {});
+}
+
+function mergeSettingsWithDefaults(settings = {}) {
+    const defaults = getDefaultSettings();
+    const merged = { ...defaults };
+
+    if (settings && typeof settings === 'object') {
+        Object.entries(settings).forEach(([key, value]) => {
+            merged[key] = value;
+        });
+    }
+
+    if (!merged.portalBaseUrl) {
+        merged.portalBaseUrl = defaults.portalBaseUrl || '';
+    }
+
+    if (typeof merged.portalBaseUrl === 'string') {
+        merged.portalBaseUrl = merged.portalBaseUrl.trim();
+    }
+
+    if (!merged.themeColor) {
+        merged.themeColor = defaults.themeColor || '#6366f1';
+    }
+
+    merged.chatbotEnabled = Boolean(merged.chatbotEnabled);
+    merged.chatbotName = merged.chatbotName || defaults.chatbotName;
+    merged.chatbotWelcome = merged.chatbotWelcome || defaults.chatbotWelcome;
+    merged.chatbotFaqs = normalizeChatbotFaqs(merged.chatbotFaqs);
+
+    return merged;
+}
+
+const OWNER_ID_KEYS = [
+    'user_id',
+    'userId',
+    'owner_id',
+    'ownerId',
+    'created_by',
+    'createdBy',
+    'profile_id',
+    'profileId',
+    'account_id',
+    'accountId'
+];
+
+function extractRecordOwner(record) {
+    if (!record || typeof record !== 'object') {
+        return { hasOwnerField: false, ownerId: null };
+    }
+
+    for (const key of OWNER_ID_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(record, key)) {
+            const value = record[key];
+            if (value === null || value === undefined || value === '') {
+                return { hasOwnerField: true, ownerId: null };
+            }
+
+            return { hasOwnerField: true, ownerId: String(value) };
+        }
+    }
+
+    return { hasOwnerField: false, ownerId: null };
+}
+
+function getActiveUserId() {
+    return activeSupabaseUserId ? String(activeSupabaseUserId) : null;
+}
+
+function ensureActiveUserId(feedbackSelector, message) {
+    const userId = getActiveUserId();
+
+    if (userId) {
+        return userId;
+    }
+
+    if (feedbackSelector) {
+        setFeedback(
+            feedbackSelector,
+            message || 'Tu sesión expiró. Inicia sesión nuevamente para continuar.',
+            'error'
+        );
+    }
+
+    return null;
+}
+
+function filterRecordsForActiveUser(records, userId = getActiveUserId()) {
+    if (!Array.isArray(records) || records.length === 0) {
+        return Array.isArray(records) ? records : [];
+    }
+
+    if (!userId) {
+        return [];
+    }
+
+    return records.filter((record) => {
+        const { hasOwnerField, ownerId } = extractRecordOwner(record);
+
+        if (!hasOwnerField) {
+            return true;
+        }
+
+        if (!ownerId) {
+            return false;
+        }
+
+        return ownerId === userId;
+    });
+}
+
+function filterProductsByPortals(products, portals) {
+    if (!Array.isArray(products) || products.length === 0) {
+        return Array.isArray(products) ? products : [];
+    }
+
+    const filteredPortals = Array.isArray(portals) ? portals : [];
+    if (!filteredPortals.length) {
+        return products;
+    }
+
+    const portalIds = new Set(
+        filteredPortals
+            .map((portal) => portal?.id)
+            .filter((value) => value !== undefined && value !== null)
+            .map(String)
+    );
+
+    const portalSlugs = new Set(
+        filteredPortals
+            .map((portal) => portal?.slug)
+            .filter((value) => value !== undefined && value !== null)
+            .map(String)
+    );
+
+    if (!portalIds.size && !portalSlugs.size) {
+        return products;
+    }
+
+    return products.filter((product) => {
+        if (!product || typeof product !== 'object') {
+            return false;
+        }
+
+        const portalId = product.portal_id ?? product.portalId ?? null;
+        const portalSlug = product.portal_slug ?? product.portalSlug ?? null;
+
+        if (portalId && portalIds.has(String(portalId))) {
+            return true;
+        }
+
+        if (portalSlug && portalSlugs.has(String(portalSlug))) {
+            return true;
+        }
+
+        const hasPortalReference = Boolean(portalId) || Boolean(portalSlug);
+        return !hasPortalReference;
+    });
 }
 
 function parseJsonItems(items) {
@@ -468,6 +701,12 @@ function normalizePortalRecord(record) {
         heroTitle: record.hero_title ?? record.heroTitle ?? record.name ?? '',
         heroSubtitle: record.hero_subtitle ?? record.heroSubtitle ?? record.description ?? '',
         bannerImage: record.banner_image ?? record.bannerImage ?? record.hero_image ?? '',
+        chatbotEnabled: parseBooleanFlag(record.chatbot_enabled ?? record.chatbotEnabled) ?? false,
+        chatbotName: record.chatbot_name ?? record.chatbotName ?? 'Asistente virtual',
+        chatbotWelcome:
+            record.chatbot_welcome ?? record.chatbotWelcome ??
+            'Hola, soy tu asistente virtual. ¿En qué puedo ayudarte?',
+        chatbotFaqs: normalizeChatbotFaqs(record.chatbot_faqs ?? record.chatbotFaqs ?? []),
         terms,
         productIds,
         createdAt: record.created_at ?? record.createdAt ?? null
@@ -531,6 +770,26 @@ function normalizeSettingsRecords(data) {
                 case 'portal_base_url':
                     result.portalBaseUrl = value || '';
                     break;
+                case 'chatbotenabled':
+                case 'chatbot_enabled': {
+                    const parsed = parseBooleanFlag(value);
+                    if (typeof parsed === 'boolean') {
+                        result.chatbotEnabled = parsed;
+                    }
+                    break;
+                }
+                case 'chatbotname':
+                case 'chatbot_name':
+                    result.chatbotName = value || '';
+                    break;
+                case 'chatbotwelcome':
+                case 'chatbot_welcome':
+                    result.chatbotWelcome = value || '';
+                    break;
+                case 'chatbotfaqs':
+                case 'chatbot_faqs':
+                    result.chatbotFaqs = normalizeChatbotFaqs(value);
+                    break;
                 default:
                     break;
             }
@@ -545,13 +804,26 @@ function normalizeSettingsRecords(data) {
             tagline: ['tagline', 'slogan'],
             themeColor: ['theme_color', 'themeColor', 'accent_color', 'accentColor'],
             logoUrl: ['logo_url', 'logoUrl', 'logo'],
-            portalBaseUrl: ['portal_base_url', 'portalBaseUrl']
+            portalBaseUrl: ['portal_base_url', 'portalBaseUrl'],
+            chatbotEnabled: ['chatbot_enabled', 'chatbotEnabled'],
+            chatbotName: ['chatbot_name', 'chatbotName'],
+            chatbotWelcome: ['chatbot_welcome', 'chatbotWelcome'],
+            chatbotFaqs: ['chatbot_faqs', 'chatbotFaqs']
         };
 
         Object.entries(mapping).forEach(([target, keys]) => {
             keys.some((key) => {
                 if (key in record && record[key] !== undefined && record[key] !== null) {
-                    result[target] = record[key];
+                    if (target === 'chatbotFaqs') {
+                        result[target] = normalizeChatbotFaqs(record[key]);
+                    } else if (target === 'chatbotEnabled') {
+                        const parsed = parseBooleanFlag(record[key]);
+                        if (typeof parsed === 'boolean') {
+                            result[target] = parsed;
+                        }
+                    } else {
+                        result[target] = record[key];
+                    }
                     return true;
                 }
                 return false;
@@ -597,6 +869,11 @@ async function loadDashboardDataFromSupabase() {
         return;
     }
 
+    const userId = getActiveUserId();
+    if (!userId) {
+        return;
+    }
+
     isFetchingDashboardData = true;
 
     try {
@@ -618,20 +895,39 @@ async function loadDashboardDataFromSupabase() {
             fetchTableData('settings')
         ]);
 
+        const filteredPortalsRaw = filterRecordsForActiveUser(portalsRaw, userId);
+        const filteredProductsRaw = filterProductsByPortals(
+            filterRecordsForActiveUser(productsRaw, userId),
+            filteredPortalsRaw
+        );
+        const filteredSalesRaw = filterRecordsForActiveUser(salesRaw, userId);
+        const filteredSaleRequestsRaw = filterRecordsForActiveUser(saleRequestsRaw, userId);
+        const filteredClientsRaw = filterRecordsForActiveUser(clientsRaw, userId);
+        const filteredInventoryRaw = filterRecordsForActiveUser(inventoryRaw, userId);
+        const filteredSettingsRaw = filterRecordsForActiveUser(settingsRaw, userId);
+
         const normalized = {
-            products: productsRaw.map(normalizeProductRecord),
-            sales: salesRaw.map(normalizeSaleRecord),
-            saleRequests: saleRequestsRaw.map(normalizeSaleRequestRecord),
-            clients: clientsRaw.map(normalizeClientRecord),
-            inventoryAdjustments: inventoryRaw.map(normalizeInventoryAdjustmentRecord),
-            portals: portalsRaw.map(normalizePortalRecord).filter((portal) => portal.slug),
-            settings: normalizeSettingsRecords(settingsRaw)
+            products: filteredProductsRaw.map(normalizeProductRecord),
+            sales: filteredSalesRaw.map(normalizeSaleRecord),
+            saleRequests: filteredSaleRequestsRaw.map(normalizeSaleRequestRecord),
+            clients: filteredClientsRaw.map(normalizeClientRecord),
+            inventoryAdjustments: filteredInventoryRaw.map(normalizeInventoryAdjustmentRecord),
+            portals: filteredPortalsRaw.map(normalizePortalRecord).filter((portal) => portal.slug),
+            settings: normalizeSettingsRecords(filteredSettingsRaw)
         };
+
+        if (userId !== getActiveUserId()) {
+            hasLoadedDashboardData = false;
+            return;
+        }
 
         currentData = normalized;
         selectedPortalSlug = currentData.portals.some((portal) => portal.slug === selectedPortalSlug)
             ? selectedPortalSlug
             : currentData.portals[0]?.slug ?? null;
+
+        currentDataOwnerId = userId;
+        lastLoadedUserId = userId;
 
         renderDashboard(currentData);
         setActivePanel(activePanel);
@@ -1057,6 +1353,15 @@ async function handlePortalFormSubmit(event) {
         return;
     }
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.portalFormFeedback,
+        'Tu sesión expiró. Inicia sesión nuevamente para crear portales.'
+    );
+
+    if (!userId) {
+        return;
+    }
+
     const payload = {
         slug,
         name,
@@ -1067,7 +1372,8 @@ async function handlePortalFormSubmit(event) {
         hero_title: heroTitle || name,
         hero_subtitle: heroSubtitle || description,
         banner_image: bannerImage || null,
-        terms
+        terms,
+        owner_id: userId
     };
 
     setFeedback(DASHBOARD_SELECTORS.portalFormFeedback, 'Guardando portal…', 'info');
@@ -1685,6 +1991,18 @@ async function handleClientFormSubmit(event) {
         notes
     };
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.clientFeedback,
+        'Tu sesión expiró. Vuelve a iniciar sesión para gestionar clientes.'
+    );
+
+    if (!userId) {
+        toggleFormControls(form, false);
+        return;
+    }
+
+    payload.owner_id = userId;
+
     setFeedback(
         DASHBOARD_SELECTORS.clientFeedback,
         isEditing ? 'Actualizando cliente…' : 'Guardando cliente…',
@@ -1966,6 +2284,7 @@ async function persistInventoryChange(product, delta, { type, reason }) {
         throw new Error('Supabase no está configurado.');
     }
 
+    const ownerId = getActiveUserId();
     const currentStock = Number(product.stock ?? 0);
     const desiredStock = currentStock + delta;
     const updatedStock = Math.max(0, desiredStock);
@@ -1999,7 +2318,8 @@ async function persistInventoryChange(product, delta, { type, reason }) {
         type,
         quantity,
         direction,
-        reason: reason || ''
+        reason: reason || '',
+        owner_id: ownerId ?? null
     });
 
     if (adjustmentError) {
@@ -2071,6 +2391,15 @@ async function handleInventoryFormSubmit(event) {
             'No hay existencias suficientes para realizar este ajuste.',
             'error'
         );
+        return;
+    }
+
+    if (
+        !ensureActiveUserId(
+            DASHBOARD_SELECTORS.inventoryFeedback,
+            'Tu sesión expiró. Inicia sesión nuevamente para registrar ajustes.'
+        )
+    ) {
         return;
     }
 
@@ -2221,7 +2550,9 @@ function renderSettingsForm(settings = {}) {
         'tagline',
         'themeColor',
         'logoUrl',
-        'portalBaseUrl'
+        'portalBaseUrl',
+        'chatbotName',
+        'chatbotWelcome'
     ];
     fields.forEach((field) => {
         if (form.elements[field]) {
@@ -2232,6 +2563,12 @@ function renderSettingsForm(settings = {}) {
             }
         }
     });
+
+    if (form.elements.chatbotEnabled) {
+        form.elements.chatbotEnabled.checked = Boolean(settings.chatbotEnabled);
+    }
+
+    renderChatbotSettingsFaqs(settings.chatbotFaqs);
 }
 
 function applySettings(settings = {}) {
@@ -2258,6 +2595,82 @@ function applySettings(settings = {}) {
     updateSettingsPreview(settings);
 }
 
+function createChatbotFaqRow(faq = {}) {
+    const row = document.createElement('div');
+    row.className = 'chatbot-faq-row';
+    row.dataset.chatbotRow = 'true';
+
+    row.innerHTML = `
+        <div class="chatbot-faq-main">
+            <label class="settings-form-field chatbot-faq-field">
+                <span>Pregunta o título</span>
+                <input type="text" data-field="question" placeholder="Ej. ¿Cuál es el horario?" />
+            </label>
+            <label class="settings-form-field chatbot-faq-field">
+                <span>Palabras clave (opcional)</span>
+                <input type="text" data-field="keywords" placeholder="horario, atención" />
+            </label>
+        </div>
+        <label class="settings-form-field chatbot-faq-field chatbot-faq-answer">
+            <span>Respuesta para el cliente</span>
+            <textarea rows="2" data-field="answer" placeholder="Describe la respuesta que el chatbot mostrará"></textarea>
+        </label>
+        <button type="button" class="chatbot-faq-remove" data-action="remove-chatbot-faq" aria-label="Eliminar pregunta">
+            &times;
+        </button>
+    `;
+
+    const questionInput = row.querySelector('[data-field="question"]');
+    const keywordsInput = row.querySelector('[data-field="keywords"]');
+    const answerInput = row.querySelector('[data-field="answer"]');
+
+    if (questionInput) {
+        questionInput.value = faq.question ?? '';
+    }
+
+    if (keywordsInput) {
+        keywordsInput.value = Array.isArray(faq.keywords) ? faq.keywords.join(', ') : '';
+    }
+
+    if (answerInput) {
+        answerInput.value = faq.answer ?? '';
+    }
+
+    return row;
+}
+
+function updateChatbotFaqEmptyState() {
+    const list = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    const empty = getElement(DASHBOARD_SELECTORS.settingsChatbotEmpty);
+    if (!list || !empty) {
+        return;
+    }
+
+    const hasRows = Boolean(list.querySelector('[data-chatbot-row]'));
+    empty.classList.toggle('hidden', hasRows);
+}
+
+function renderChatbotSettingsFaqs(faqs = []) {
+    const list = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    const entries = Array.isArray(faqs) && faqs.length ? faqs : [];
+
+    if (!entries.length) {
+        updateChatbotFaqEmptyState();
+        return;
+    }
+
+    entries.forEach((faq) => {
+        const row = createChatbotFaqRow(faq);
+        list.appendChild(row);
+    });
+
+    updateChatbotFaqEmptyState();
+}
+
 function getSettingsFromForm() {
     const form = getElement(DASHBOARD_SELECTORS.settingsForm);
     if (!form) return {};
@@ -2270,7 +2683,28 @@ function getSettingsFromForm() {
         tagline: form.elements.tagline?.value.trim() || '',
         themeColor: form.elements.themeColor?.value || '#6366f1',
         logoUrl: form.elements.logoUrl?.value.trim() || '',
-        portalBaseUrl: form.elements.portalBaseUrl?.value.trim() || ''
+        portalBaseUrl: form.elements.portalBaseUrl?.value.trim() || '',
+        chatbotEnabled: Boolean(form.elements.chatbotEnabled?.checked),
+        chatbotName: form.elements.chatbotName?.value.trim() || '',
+        chatbotWelcome: form.elements.chatbotWelcome?.value.trim() || '',
+        chatbotFaqs: Array.from(form.querySelectorAll('[data-chatbot-row]'))
+            .map((row) => {
+                const question = row.querySelector('[data-field="question"]')?.value.trim() || '';
+                const answer = row.querySelector('[data-field="answer"]')?.value.trim() || '';
+                const keywordsValue = row.querySelector('[data-field="keywords"]')?.value || '';
+                const keywords = parseKeywordList(keywordsValue);
+
+                if (!question || !answer) {
+                    return null;
+                }
+
+                return {
+                    question,
+                    answer,
+                    keywords
+                };
+            })
+            .filter(Boolean)
     };
 }
 
@@ -2282,7 +2716,11 @@ const SETTINGS_KEY_MAP = {
     tagline: 'tagline',
     themeColor: 'theme_color',
     logoUrl: 'logo_url',
-    portalBaseUrl: 'portal_base_url'
+    portalBaseUrl: 'portal_base_url',
+    chatbotEnabled: 'chatbot_enabled',
+    chatbotName: 'chatbot_name',
+    chatbotWelcome: 'chatbot_welcome',
+    chatbotFaqs: 'chatbot_faqs'
 };
 
 async function handleSettingsSubmit(event) {
@@ -2306,7 +2744,22 @@ async function handleSettingsSubmit(event) {
     const form = event.currentTarget;
     const payload = Object.entries(formSettings).map(([key, value]) => ({
         key: SETTINGS_KEY_MAP[key] ?? key,
-        value: typeof value === 'string' ? value : String(value ?? '')
+        value: (() => {
+            if (Array.isArray(value)) {
+                return JSON.stringify(value);
+            }
+            if (typeof value === 'boolean') {
+                return value ? 'true' : 'false';
+            }
+            if (value && typeof value === 'object') {
+                try {
+                    return JSON.stringify(value);
+                } catch (error) {
+                    return '';
+                }
+            }
+            return typeof value === 'string' ? value : String(value ?? '');
+        })()
     }));
 
     setFeedback(DASHBOARD_SELECTORS.settingsFeedback, 'Guardando configuración…', 'info');
@@ -2347,6 +2800,33 @@ function handleSettingsPreviewChange() {
     if (formSettings.themeColor) {
         document.documentElement.style.setProperty('--dashboard-accent', formSettings.themeColor);
     }
+}
+
+function handleChatbotFaqAdd(event) {
+    event.preventDefault();
+    const list = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    if (!list) return;
+
+    const row = createChatbotFaqRow({});
+    list.appendChild(row);
+    updateChatbotFaqEmptyState();
+
+    const questionInput = row.querySelector('[data-field="question"]');
+    if (questionInput) {
+        questionInput.focus();
+    }
+}
+
+function handleChatbotFaqListClick(event) {
+    const removeButton = event.target.closest('[data-action="remove-chatbot-faq"]');
+    if (!removeButton) {
+        return;
+    }
+
+    event.preventDefault();
+    const row = removeButton.closest('[data-chatbot-row]');
+    row?.remove();
+    updateChatbotFaqEmptyState();
 }
 
 function populateSaleProductOptions(products) {
@@ -2461,6 +2941,11 @@ async function ensureClientExists(name) {
         return null;
     }
 
+    const userId = getActiveUserId();
+    if (!userId) {
+        return null;
+    }
+
     const normalized = name.trim().toLowerCase();
     const existingLocal = currentData.clients.find((client) => client.name?.toLowerCase() === normalized);
     if (existingLocal) {
@@ -2492,7 +2977,8 @@ async function ensureClientExists(name) {
                 company: name,
                 status: 'Prospecto',
                 status_class: getClientStatusClass('Prospecto'),
-                notes: 'Añadido automáticamente desde una venta.'
+                notes: 'Añadido automáticamente desde una venta.',
+                owner_id: userId
             })
             .select()
             .single();
@@ -2556,6 +3042,16 @@ async function handleAddSaleSubmit(event) {
         return;
     }
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.addSaleFeedback,
+        'Tu sesión expiró. Inicia sesión nuevamente para registrar ventas.'
+    );
+
+    if (!userId) {
+        toggleFormControls(form, false);
+        return;
+    }
+
     setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Registrando venta…', 'info');
     toggleFormControls(form, true);
 
@@ -2573,6 +3069,7 @@ async function handleAddSaleSubmit(event) {
             client_name: clientName,
             client_email: clientRecord?.email ?? null,
             client_phone: clientRecord?.phone ?? null,
+            owner_id: userId,
             items: [
                 {
                     product_id: product.id,
@@ -2628,6 +3125,11 @@ async function handleAddSaleSubmit(event) {
 async function processSaleRequest(requestId) {
     if (!supabaseClient) {
         throw new Error('No se pudo conectar con la base de datos.');
+    }
+
+    const userId = getActiveUserId();
+    if (!userId) {
+        throw new Error('Tu sesión expiró. Inicia sesión nuevamente para procesar solicitudes.');
     }
 
     const targetId = String(requestId || '');
@@ -2707,6 +3209,7 @@ async function processSaleRequest(requestId) {
         client_name: request.name,
         client_email: request.email || clientRecord?.email || null,
         client_phone: request.phone || clientRecord?.phone || null,
+        owner_id: userId,
         items: normalizedItems
     };
 
@@ -3140,6 +3643,15 @@ async function handleAddProductSubmit(event) {
         return;
     }
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.addProductFeedback,
+        'Tu sesión expiró. Inicia sesión nuevamente para gestionar productos.'
+    );
+
+    if (!userId) {
+        return;
+    }
+
     const normalizedPrice = Number(Math.max(0, price).toFixed(2));
     const normalizedStock = Math.max(0, Math.trunc(stock));
     const statusClass = getStatusClass(status);
@@ -3155,7 +3667,8 @@ async function handleAddProductSubmit(event) {
         status_class: statusClass,
         image: image || null,
         portal_id: portalId || null,
-        portal_slug: portal?.slug ?? null
+        portal_slug: portal?.slug ?? null,
+        owner_id: userId
     };
 
     setFeedback(
@@ -3394,6 +3907,11 @@ export function initDashboard({ supabase }) {
     settingsForm?.addEventListener('submit', handleSettingsSubmit);
     settingsForm?.addEventListener('input', handleSettingsPreviewChange);
 
+    const chatbotAddButton = getElement(DASHBOARD_SELECTORS.settingsChatbotAddButton);
+    const chatbotFaqList = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    chatbotAddButton?.addEventListener('click', handleChatbotFaqAdd);
+    chatbotFaqList?.addEventListener('click', handleChatbotFaqListClick);
+
     const portalToggleButton = getElement(DASHBOARD_SELECTORS.portalFormToggle);
     const portalForm = getElement(DASHBOARD_SELECTORS.portalForm);
     const portalFormCancel = getElement(DASHBOARD_SELECTORS.portalFormCancel);
@@ -3416,10 +3934,18 @@ export function initDashboard({ supabase }) {
     portalShareInput?.addEventListener('click', handlePortalShareInputFocus);
 
     logoutButton?.addEventListener('click', async () => {
-        if (!supabaseClient) return;
         const button = logoutButton;
         button.disabled = true;
         button.textContent = 'Cerrando sesión…';
+
+        const hasLocalSession = Boolean(getStoredLocalSession());
+
+        if (!supabaseClient || hasLocalSession) {
+            clearStoredLocalSession();
+            hideDashboard();
+            resetLogoutButton();
+            return;
+        }
 
         const { error } = await supabaseClient.auth.signOut();
         if (error) {
@@ -3472,13 +3998,17 @@ export async function showDashboard(session) {
     toggleSections(true);
     resetLogoutButton();
 
+    activeSupabaseUserId = session?.user?.id ?? null;
+
     const userEmail = session?.user?.email ?? 'Invitado';
     setText(DASHBOARD_SELECTORS.userEmail, userEmail);
 
     renderDashboard(currentData);
     setActivePanel(activePanel);
 
-    if (!supabaseClient) {
+    const isLocalSession = Boolean(session?.isLocalSession || session?.user?.user_metadata?.localAccount);
+
+    if (!supabaseClient || isLocalSession) {
         return;
     }
 
@@ -3498,6 +4028,8 @@ export function hideDashboard() {
     toggleAddProductForm(false);
     toggleAddSaleForm(false);
 
+    activeSupabaseUserId = null;
+    currentDataOwnerId = null;
     setText(DASHBOARD_SELECTORS.userEmail, 'Invitado');
     resetLogoutButton();
     currentData = cloneData(defaultDashboardState);
@@ -3508,6 +4040,7 @@ export function hideDashboard() {
     pendingRealtimeRefresh = false;
     activePanel = 'overview';
     setActivePanel(activePanel);
+    renderDashboard(currentData);
 }
 
 export function setDashboardData(data) {
@@ -3523,6 +4056,8 @@ export function setDashboardData(data) {
         portals: Array.isArray(data.portals) ? cloneData(data.portals) : cloneData(defaultDashboardState.portals || []),
         settings: mergeSettingsWithDefaults(data.settings)
     };
+
+    currentDataOwnerId = getActiveUserId();
 
     renderDashboard(currentData);
 }
