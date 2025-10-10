@@ -1,4 +1,5 @@
 import { getInitialDashboardData } from './sampleData.js';
+import { getStoredLocalSession, clearStoredLocalSession } from './auth.js';
 
 const DASHBOARD_SELECTORS = {
     section: '[data-section="dashboard"]',
@@ -3670,10 +3671,18 @@ export function initDashboard({ supabase }) {
     portalShareInput?.addEventListener('click', handlePortalShareInputFocus);
 
     logoutButton?.addEventListener('click', async () => {
-        if (!supabaseClient) return;
         const button = logoutButton;
         button.disabled = true;
         button.textContent = 'Cerrando sesión…';
+
+        const hasLocalSession = Boolean(getStoredLocalSession());
+
+        if (!supabaseClient || hasLocalSession) {
+            clearStoredLocalSession();
+            hideDashboard();
+            resetLogoutButton();
+            return;
+        }
 
         const { error } = await supabaseClient.auth.signOut();
         if (error) {
@@ -3732,7 +3741,9 @@ export async function showDashboard(session) {
     renderDashboard(currentData);
     setActivePanel(activePanel);
 
-    if (!supabaseClient) {
+    const isLocalSession = Boolean(session?.isLocalSession || session?.user?.user_metadata?.localAccount);
+
+    if (!supabaseClient || isLocalSession) {
         return;
     }
 
