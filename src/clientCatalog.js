@@ -1265,6 +1265,16 @@ function normalizePortalRecord(record, slug) {
     const terms = parseArrayField(record.terms ?? record.terms_conditions ?? record.conditions);
     const bannerImage = record.banner_image ?? record.bannerImage ?? record.hero_image ?? '';
 
+    const rawChatbotEnabled = record.chatbot_enabled ?? record.chatbotEnabled;
+    const portalChatbotEnabled =
+        typeof rawChatbotEnabled === 'boolean'
+            ? rawChatbotEnabled
+            : rawChatbotEnabled === 'true'
+              ? true
+              : rawChatbotEnabled === 'false'
+                ? false
+                : undefined;
+
     return {
         id: record.id ?? slug,
         slug: record.slug ?? slug,
@@ -1277,7 +1287,7 @@ function normalizePortalRecord(record, slug) {
         contactPhone: record.contact_phone ?? record.phone ?? '',
         bannerImage,
         bannerImageUrl: resolveMediaUrl(bannerImage),
-        chatbotEnabled: Boolean(record.chatbot_enabled ?? record.chatbotEnabled ?? false),
+        chatbotEnabled: portalChatbotEnabled,
         chatbotName: record.chatbot_name ?? record.chatbotName ?? '',
         chatbotWelcome: record.chatbot_welcome ?? record.chatbotWelcome ?? '',
         chatbotFaqs: normalizeChatbotFaqs(record.chatbot_faqs ?? record.chatbotFaqs ?? []),
