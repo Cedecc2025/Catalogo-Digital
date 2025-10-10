@@ -77,6 +77,44 @@ const DASHBOARD_SELECTORS = {
 };
 const defaultDashboardState = getInitialDashboardData();
 
+function parseBooleanFlag(value) {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        if (Number.isNaN(value)) {
+            return undefined;
+        }
+
+        if (value === 1) {
+            return true;
+        }
+
+        if (value === 0) {
+            return false;
+        }
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+
+        if (!normalized) {
+            return undefined;
+        }
+
+        if (['true', '1', 'yes', 'y', 'si', 'sí', 'on', 't'].includes(normalized)) {
+            return true;
+        }
+
+        if (['false', '0', 'no', 'n', 'off', 'f'].includes(normalized)) {
+            return false;
+        }
+    }
+
+    return undefined;
+}
+
 function cloneData(data) {
     return JSON.parse(JSON.stringify(data));
 }
@@ -663,7 +701,7 @@ function normalizePortalRecord(record) {
         heroTitle: record.hero_title ?? record.heroTitle ?? record.name ?? '',
         heroSubtitle: record.hero_subtitle ?? record.heroSubtitle ?? record.description ?? '',
         bannerImage: record.banner_image ?? record.bannerImage ?? record.hero_image ?? '',
-        chatbotEnabled: Boolean(record.chatbot_enabled ?? record.chatbotEnabled ?? false),
+        chatbotEnabled: parseBooleanFlag(record.chatbot_enabled ?? record.chatbotEnabled) ?? false,
         chatbotName: record.chatbot_name ?? record.chatbotName ?? 'Asistente virtual',
         chatbotWelcome:
             record.chatbot_welcome ?? record.chatbotWelcome ??
@@ -733,9 +771,13 @@ function normalizeSettingsRecords(data) {
                     result.portalBaseUrl = value || '';
                     break;
                 case 'chatbotenabled':
-                case 'chatbot_enabled':
-                    result.chatbotEnabled = value === true || value === 'true' || value === '1';
+                case 'chatbot_enabled': {
+                    const parsed = parseBooleanFlag(value);
+                    if (typeof parsed === 'boolean') {
+                        result.chatbotEnabled = parsed;
+                    }
                     break;
+                }
                 case 'chatbotname':
                 case 'chatbot_name':
                     result.chatbotName = value || '';
@@ -775,8 +817,10 @@ function normalizeSettingsRecords(data) {
                     if (target === 'chatbotFaqs') {
                         result[target] = normalizeChatbotFaqs(record[key]);
                     } else if (target === 'chatbotEnabled') {
-                        const raw = record[key];
-                        result[target] = raw === true || raw === 'true' || raw === '1';
+                        const parsed = parseBooleanFlag(record[key]);
+                        if (typeof parsed === 'boolean') {
+                            result[target] = parsed;
+                        }
                     } else {
                         result[target] = record[key];
                     }

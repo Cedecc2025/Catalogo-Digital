@@ -4,6 +4,44 @@ let activePortal = null;
 let portalProducts = [];
 const selectedItems = new Map();
 
+function parseBooleanFlag(value) {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        if (Number.isNaN(value)) {
+            return undefined;
+        }
+
+        if (value === 1) {
+            return true;
+        }
+
+        if (value === 0) {
+            return false;
+        }
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+
+        if (!normalized) {
+            return undefined;
+        }
+
+        if (['true', '1', 'yes', 'y', 'si', 'sí', 'on', 't'].includes(normalized)) {
+            return true;
+        }
+
+        if (['false', '0', 'no', 'n', 'off', 'f'].includes(normalized)) {
+            return false;
+        }
+    }
+
+    return undefined;
+}
+
 const defaultChatbotConfig = {
     enabled: false,
     name: 'Asistente virtual',
@@ -182,9 +220,13 @@ function normalizeChatbotSettingsRecords(records) {
 
         switch (key) {
             case 'chatbot_enabled':
-            case 'chatbotenabled':
-                config.enabled = rawValue === true || rawValue === 'true' || rawValue === '1';
+            case 'chatbotenabled': {
+                const parsed = parseBooleanFlag(rawValue);
+                if (typeof parsed === 'boolean') {
+                    config.enabled = parsed;
+                }
                 break;
+            }
             case 'chatbot_name':
             case 'chatbotname':
                 config.name = typeof rawValue === 'string' ? rawValue.trim() : '';
@@ -1266,14 +1308,7 @@ function normalizePortalRecord(record, slug) {
     const bannerImage = record.banner_image ?? record.bannerImage ?? record.hero_image ?? '';
 
     const rawChatbotEnabled = record.chatbot_enabled ?? record.chatbotEnabled;
-    const portalChatbotEnabled =
-        typeof rawChatbotEnabled === 'boolean'
-            ? rawChatbotEnabled
-            : rawChatbotEnabled === 'true'
-              ? true
-              : rawChatbotEnabled === 'false'
-                ? false
-                : undefined;
+    const portalChatbotEnabled = parseBooleanFlag(rawChatbotEnabled);
 
     return {
         id: record.id ?? slug,
