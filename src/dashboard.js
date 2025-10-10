@@ -333,6 +333,24 @@ function getActiveUserId() {
     return activeSupabaseUserId ? String(activeSupabaseUserId) : null;
 }
 
+function ensureActiveUserId(feedbackSelector, message) {
+    const userId = getActiveUserId();
+
+    if (userId) {
+        return userId;
+    }
+
+    if (feedbackSelector) {
+        setFeedback(
+            feedbackSelector,
+            message || 'Tu sesión expiró. Inicia sesión nuevamente para continuar.',
+            'error'
+        );
+    }
+
+    return null;
+}
+
 function filterRecordsForActiveUser(records, userId = getActiveUserId()) {
     if (!Array.isArray(records) || records.length === 0) {
         return Array.isArray(records) ? records : [];
@@ -1291,6 +1309,15 @@ async function handlePortalFormSubmit(event) {
         return;
     }
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.portalFormFeedback,
+        'Tu sesión expiró. Inicia sesión nuevamente para crear portales.'
+    );
+
+    if (!userId) {
+        return;
+    }
+
     const payload = {
         slug,
         name,
@@ -1301,7 +1328,8 @@ async function handlePortalFormSubmit(event) {
         hero_title: heroTitle || name,
         hero_subtitle: heroSubtitle || description,
         banner_image: bannerImage || null,
-        terms
+        terms,
+        owner_id: userId
     };
 
     setFeedback(DASHBOARD_SELECTORS.portalFormFeedback, 'Guardando portal…', 'info');
@@ -1919,6 +1947,18 @@ async function handleClientFormSubmit(event) {
         notes
     };
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.clientFeedback,
+        'Tu sesión expiró. Vuelve a iniciar sesión para gestionar clientes.'
+    );
+
+    if (!userId) {
+        toggleFormControls(form, false);
+        return;
+    }
+
+    payload.owner_id = userId;
+
     setFeedback(
         DASHBOARD_SELECTORS.clientFeedback,
         isEditing ? 'Actualizando cliente…' : 'Guardando cliente…',
@@ -2200,6 +2240,7 @@ async function persistInventoryChange(product, delta, { type, reason }) {
         throw new Error('Supabase no está configurado.');
     }
 
+    const ownerId = getActiveUserId();
     const currentStock = Number(product.stock ?? 0);
     const desiredStock = currentStock + delta;
     const updatedStock = Math.max(0, desiredStock);
@@ -2233,7 +2274,8 @@ async function persistInventoryChange(product, delta, { type, reason }) {
         type,
         quantity,
         direction,
-        reason: reason || ''
+        reason: reason || '',
+        owner_id: ownerId ?? null
     });
 
     if (adjustmentError) {
@@ -2305,6 +2347,15 @@ async function handleInventoryFormSubmit(event) {
             'No hay existencias suficientes para realizar este ajuste.',
             'error'
         );
+        return;
+    }
+
+    if (
+        !ensureActiveUserId(
+            DASHBOARD_SELECTORS.inventoryFeedback,
+            'Tu sesión expiró. Inicia sesión nuevamente para registrar ajustes.'
+        )
+    ) {
         return;
     }
 
@@ -2846,6 +2897,11 @@ async function ensureClientExists(name) {
         return null;
     }
 
+    const userId = getActiveUserId();
+    if (!userId) {
+        return null;
+    }
+
     const normalized = name.trim().toLowerCase();
     const existingLocal = currentData.clients.find((client) => client.name?.toLowerCase() === normalized);
     if (existingLocal) {
@@ -2877,7 +2933,8 @@ async function ensureClientExists(name) {
                 company: name,
                 status: 'Prospecto',
                 status_class: getClientStatusClass('Prospecto'),
-                notes: 'Añadido automáticamente desde una venta.'
+                notes: 'Añadido automáticamente desde una venta.',
+                owner_id: userId
             })
             .select()
             .single();
@@ -2941,6 +2998,16 @@ async function handleAddSaleSubmit(event) {
         return;
     }
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.addSaleFeedback,
+        'Tu sesión expiró. Inicia sesión nuevamente para registrar ventas.'
+    );
+
+    if (!userId) {
+        toggleFormControls(form, false);
+        return;
+    }
+
     setFeedback(DASHBOARD_SELECTORS.addSaleFeedback, 'Registrando venta…', 'info');
     toggleFormControls(form, true);
 
@@ -2958,6 +3025,7 @@ async function handleAddSaleSubmit(event) {
             client_name: clientName,
             client_email: clientRecord?.email ?? null,
             client_phone: clientRecord?.phone ?? null,
+            owner_id: userId,
             items: [
                 {
                     product_id: product.id,
@@ -3013,6 +3081,11 @@ async function handleAddSaleSubmit(event) {
 async function processSaleRequest(requestId) {
     if (!supabaseClient) {
         throw new Error('No se pudo conectar con la base de datos.');
+    }
+
+    const userId = getActiveUserId();
+    if (!userId) {
+        throw new Error('Tu sesión expiró. Inicia sesión nuevamente para procesar solicitudes.');
     }
 
     const targetId = String(requestId || '');
@@ -3092,6 +3165,7 @@ async function processSaleRequest(requestId) {
         client_name: request.name,
         client_email: request.email || clientRecord?.email || null,
         client_phone: request.phone || clientRecord?.phone || null,
+        owner_id: userId,
         items: normalizedItems
     };
 
@@ -3525,6 +3599,15 @@ async function handleAddProductSubmit(event) {
         return;
     }
 
+    const userId = ensureActiveUserId(
+        DASHBOARD_SELECTORS.addProductFeedback,
+        'Tu sesión expiró. Inicia sesión nuevamente para gestionar productos.'
+    );
+
+    if (!userId) {
+        return;
+    }
+
     const normalizedPrice = Number(Math.max(0, price).toFixed(2));
     const normalizedStock = Math.max(0, Math.trunc(stock));
     const statusClass = getStatusClass(status);
@@ -3540,7 +3623,8 @@ async function handleAddProductSubmit(event) {
         status_class: statusClass,
         image: image || null,
         portal_id: portalId || null,
-        portal_slug: portal?.slug ?? null
+        portal_slug: portal?.slug ?? null,
+        owner_id: userId
     };
 
     setFeedback(

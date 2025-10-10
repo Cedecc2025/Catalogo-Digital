@@ -1170,7 +1170,11 @@ async function handleRequestSubmit(event) {
             quantity,
             unit_price: product.price
         })),
-        total: selections.reduce((sum, { product, quantity }) => sum + Number(product.price || 0) * quantity, 0)
+        total: selections.reduce(
+            (sum, { product, quantity }) => sum + Number(product.price || 0) * quantity,
+            0
+        ),
+        ownerId: activePortal.ownerId ?? null
     };
 
     if (!payload.name || !payload.email) {
@@ -1194,6 +1198,7 @@ async function handleRequestSubmit(event) {
                 notes: payload.notes,
                 items: payload.items,
                 total: payload.total,
+                owner_id: activePortal.ownerId ?? null,
                 submitted_at: new Date().toISOString()
             });
         if (!error) {
@@ -1280,7 +1285,8 @@ function normalizePortalRecord(record, slug) {
         productIds,
         heroVideo: record.hero_video ?? record.heroVideo ?? '',
         heroMediaType: record.hero_media_type ?? record.heroMediaType ?? '',
-        requestIntro: record.request_intro ?? record.requestIntro ?? ''
+        requestIntro: record.request_intro ?? record.requestIntro ?? '',
+        ownerId: record.owner_id ?? record.ownerId ?? null
     };
 }
 

@@ -21,12 +21,16 @@ create table if not exists public.clients (
     status text default 'Activo',
     status_class text,
     notes text,
+    owner_id uuid references auth.users (id) on delete set null,
     created_at timestamptz default timezone('utc', now()),
     updated_at timestamptz default timezone('utc', now())
 );
 
 alter table public.clients
     enable row level security;
+
+alter table public.clients
+    add column if not exists owner_id uuid references auth.users (id) on delete set null;
 
 drop policy if exists "Clients are readable by authenticated users" on public.clients;
 
@@ -66,6 +70,7 @@ create table if not exists public.portals (
     chatbot_faqs jsonb default '[]'::jsonb,
     terms text[] default '{}',
     product_ids uuid[] default '{}',
+    owner_id uuid references auth.users (id) on delete set null,
     created_at timestamptz default timezone('utc', now()),
     updated_at timestamptz default timezone('utc', now())
 );
@@ -77,7 +82,8 @@ alter table public.portals
     add column if not exists chatbot_enabled boolean default false,
     add column if not exists chatbot_name text,
     add column if not exists chatbot_welcome text,
-    add column if not exists chatbot_faqs jsonb default '[]'::jsonb;
+    add column if not exists chatbot_faqs jsonb default '[]'::jsonb,
+    add column if not exists owner_id uuid references auth.users (id) on delete set null;
 
 drop policy if exists "Portals are publicly readable" on public.portals;
 
@@ -112,12 +118,16 @@ create table if not exists public.products (
     portal_id uuid references public.portals (id) on delete set null,
     portal_ids uuid[] default '{}',
     portal_slug text,
+    owner_id uuid references auth.users (id) on delete set null,
     created_at timestamptz default timezone('utc', now()),
     updated_at timestamptz default timezone('utc', now())
 );
 
 alter table public.products
     enable row level security;
+
+alter table public.products
+    add column if not exists owner_id uuid references auth.users (id) on delete set null;
 
 drop policy if exists "Products are publicly readable" on public.products;
 
@@ -150,12 +160,16 @@ create table if not exists public.sales (
     client_email text,
     client_phone text,
     items jsonb default '[]'::jsonb,
+    owner_id uuid references auth.users (id) on delete set null,
     created_at timestamptz default timezone('utc', now()),
     updated_at timestamptz default timezone('utc', now())
 );
 
 alter table public.sales
     enable row level security;
+
+alter table public.sales
+    add column if not exists owner_id uuid references auth.users (id) on delete set null;
 
 drop policy if exists "Sales are readable by authenticated users" on public.sales;
 
@@ -183,12 +197,16 @@ create table if not exists public.inventory_adjustments (
     quantity numeric(12, 2) default 0,
     direction smallint default 1,
     reason text,
+    owner_id uuid references auth.users (id) on delete set null,
     created_at timestamptz default timezone('utc', now()),
     updated_at timestamptz default timezone('utc', now())
 );
 
 alter table public.inventory_adjustments
     enable row level security;
+
+alter table public.inventory_adjustments
+    add column if not exists owner_id uuid references auth.users (id) on delete set null;
 
 drop policy if exists "Inventory adjustments are readable by authenticated users" on public.inventory_adjustments;
 
@@ -273,6 +291,7 @@ create table if not exists public.sale_requests (
     processed_at timestamptz,
     processed_by uuid references auth.users (id) on delete set null,
     sale_id uuid references public.sales (id) on delete set null,
+    owner_id uuid references auth.users (id) on delete set null,
     created_at timestamptz default timezone('utc', now()),
     updated_at timestamptz default timezone('utc', now())
 );
@@ -291,6 +310,9 @@ alter table public.sale_requests
 
 alter table public.sale_requests
     add column if not exists sale_id uuid references public.sales (id) on delete set null;
+
+alter table public.sale_requests
+    add column if not exists owner_id uuid references auth.users (id) on delete set null;
 
 alter table public.sale_requests
     alter column total set default 0,
