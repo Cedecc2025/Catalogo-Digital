@@ -94,6 +94,39 @@
                 <li>No hay condiciones registradas para este portal.</li>
             </ul>
         </section>
+        <div class="client-portal-chatbot hidden" data-chatbot-container data-chatbot-active="false">
+            <button type="button" class="client-portal-chatbot-toggle" data-chatbot-toggle aria-controls="clientChatbotWindow" aria-expanded="false">
+                <span aria-hidden="true">💬</span>
+                <span class="sr-only">Abrir asistente virtual</span>
+            </button>
+            <section
+                class="client-portal-chatbot-window"
+                id="clientChatbotWindow"
+                data-chatbot-window
+                role="dialog"
+                aria-modal="false"
+                aria-labelledby="clientChatbotTitle"
+                hidden
+            >
+                <header class="client-portal-chatbot-header">
+                    <div>
+                        <h2 class="client-portal-chatbot-title" id="clientChatbotTitle" data-chatbot-title>Asistente virtual</h2>
+                        <p class="client-portal-chatbot-subtitle" data-chatbot-subtitle>Resolvemos tus dudas al instante.</p>
+                    </div>
+                    <button type="button" class="client-portal-chatbot-close" data-chatbot-close aria-label="Cerrar asistente">&times;</button>
+                </header>
+                <div class="client-portal-chatbot-body">
+                    <div class="client-portal-chatbot-messages" id="clientChatbotMessages" aria-live="polite"></div>
+                    <div class="client-portal-chatbot-typing" data-chatbot-typing>El asistente está escribiendo…</div>
+                </div>
+                <div class="client-portal-chatbot-quick hidden" id="clientChatbotQuick" aria-hidden="true" aria-label="Preguntas sugeridas"></div>
+                <form class="client-portal-chatbot-form" id="clientChatbotForm" autocomplete="off">
+                    <label class="sr-only" for="clientChatbotInput">Escribe tu mensaje</label>
+                    <input type="text" id="clientChatbotInput" name="message" placeholder="Escribe tu pregunta..." autocomplete="off" />
+                    <button type="submit" class="client-portal-chatbot-send">Enviar</button>
+                </form>
+            </section>
+        </div>
     </main>
 
     <script type="module" src="src/clientCatalog.js"></script>

@@ -56,6 +56,9 @@ const DASHBOARD_SELECTORS = {
     settingsPreviewTagline: '[data-settings-preview="tagline"]',
     settingsPreviewContact: '[data-settings-preview="contact"]',
     settingsPreviewLogo: '[data-settings-preview="logo"]',
+    settingsChatbotList: '#chatbotFaqList',
+    settingsChatbotAddButton: '#addChatbotFaq',
+    settingsChatbotEmpty: '[data-chatbot-empty]',
     dashboardTitle: '.dashboard-title',
     dashboardSubtitle: '.dashboard-subtitle',
     portalShareInput: '#portalShareInput',
@@ -144,6 +147,11 @@ function mergeSettingsWithDefaults(settings = {}) {
         merged.themeColor = defaults.themeColor || '#6366f1';
     }
 
+    merged.chatbotEnabled = Boolean(merged.chatbotEnabled);
+    merged.chatbotName = merged.chatbotName || defaults.chatbotName;
+    merged.chatbotWelcome = merged.chatbotWelcome || defaults.chatbotWelcome;
+    merged.chatbotFaqs = normalizeChatbotFaqs(merged.chatbotFaqs);
+
     return merged;
 }
 
@@ -220,7 +228,64 @@ function parseArrayField(value) {
             .split(',')
             .map((item) => item.trim())
             .filter(Boolean);
+}
+
+function parseKeywordList(value) {
+    const arrayValue = parseArrayField(value);
+    return arrayValue
+        .map((item) => String(item ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 10);
+}
+
+function normalizeChatbotFaqs(value) {
+    if (!value && value !== 0) {
+        return [];
     }
+
+    let entries = value;
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            entries = parsed;
+        } catch (error) {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(entries)) {
+        return [];
+    }
+
+    return entries
+        .map((item) => {
+            if (!item || typeof item !== 'object') {
+                return null;
+            }
+
+            const question = String(item.question ?? '').trim();
+            const answer = String(item.answer ?? '').trim();
+            const keywords = parseKeywordList(item.keywords ?? item.tags ?? []);
+
+            if (!question || !answer) {
+                return null;
+            }
+
+            return {
+                question,
+                answer,
+                keywords
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 12);
+}
 
     if (typeof value === 'object') {
         return Object.values(value).filter(Boolean);
@@ -468,6 +533,12 @@ function normalizePortalRecord(record) {
         heroTitle: record.hero_title ?? record.heroTitle ?? record.name ?? '',
         heroSubtitle: record.hero_subtitle ?? record.heroSubtitle ?? record.description ?? '',
         bannerImage: record.banner_image ?? record.bannerImage ?? record.hero_image ?? '',
+        chatbotEnabled: Boolean(record.chatbot_enabled ?? record.chatbotEnabled ?? false),
+        chatbotName: record.chatbot_name ?? record.chatbotName ?? 'Asistente virtual',
+        chatbotWelcome:
+            record.chatbot_welcome ?? record.chatbotWelcome ??
+            'Hola, soy tu asistente virtual. ¿En qué puedo ayudarte?',
+        chatbotFaqs: normalizeChatbotFaqs(record.chatbot_faqs ?? record.chatbotFaqs ?? []),
         terms,
         productIds,
         createdAt: record.created_at ?? record.createdAt ?? null
@@ -531,6 +602,22 @@ function normalizeSettingsRecords(data) {
                 case 'portal_base_url':
                     result.portalBaseUrl = value || '';
                     break;
+                case 'chatbotenabled':
+                case 'chatbot_enabled':
+                    result.chatbotEnabled = value === true || value === 'true' || value === '1';
+                    break;
+                case 'chatbotname':
+                case 'chatbot_name':
+                    result.chatbotName = value || '';
+                    break;
+                case 'chatbotwelcome':
+                case 'chatbot_welcome':
+                    result.chatbotWelcome = value || '';
+                    break;
+                case 'chatbotfaqs':
+                case 'chatbot_faqs':
+                    result.chatbotFaqs = normalizeChatbotFaqs(value);
+                    break;
                 default:
                     break;
             }
@@ -545,13 +632,24 @@ function normalizeSettingsRecords(data) {
             tagline: ['tagline', 'slogan'],
             themeColor: ['theme_color', 'themeColor', 'accent_color', 'accentColor'],
             logoUrl: ['logo_url', 'logoUrl', 'logo'],
-            portalBaseUrl: ['portal_base_url', 'portalBaseUrl']
+            portalBaseUrl: ['portal_base_url', 'portalBaseUrl'],
+            chatbotEnabled: ['chatbot_enabled', 'chatbotEnabled'],
+            chatbotName: ['chatbot_name', 'chatbotName'],
+            chatbotWelcome: ['chatbot_welcome', 'chatbotWelcome'],
+            chatbotFaqs: ['chatbot_faqs', 'chatbotFaqs']
         };
 
         Object.entries(mapping).forEach(([target, keys]) => {
             keys.some((key) => {
                 if (key in record && record[key] !== undefined && record[key] !== null) {
-                    result[target] = record[key];
+                    if (target === 'chatbotFaqs') {
+                        result[target] = normalizeChatbotFaqs(record[key]);
+                    } else if (target === 'chatbotEnabled') {
+                        const raw = record[key];
+                        result[target] = raw === true || raw === 'true' || raw === '1';
+                    } else {
+                        result[target] = record[key];
+                    }
                     return true;
                 }
                 return false;
@@ -2221,7 +2319,9 @@ function renderSettingsForm(settings = {}) {
         'tagline',
         'themeColor',
         'logoUrl',
-        'portalBaseUrl'
+        'portalBaseUrl',
+        'chatbotName',
+        'chatbotWelcome'
     ];
     fields.forEach((field) => {
         if (form.elements[field]) {
@@ -2232,6 +2332,12 @@ function renderSettingsForm(settings = {}) {
             }
         }
     });
+
+    if (form.elements.chatbotEnabled) {
+        form.elements.chatbotEnabled.checked = Boolean(settings.chatbotEnabled);
+    }
+
+    renderChatbotSettingsFaqs(settings.chatbotFaqs);
 }
 
 function applySettings(settings = {}) {
@@ -2258,6 +2364,82 @@ function applySettings(settings = {}) {
     updateSettingsPreview(settings);
 }
 
+function createChatbotFaqRow(faq = {}) {
+    const row = document.createElement('div');
+    row.className = 'chatbot-faq-row';
+    row.dataset.chatbotRow = 'true';
+
+    row.innerHTML = `
+        <div class="chatbot-faq-main">
+            <label class="settings-form-field chatbot-faq-field">
+                <span>Pregunta o título</span>
+                <input type="text" data-field="question" placeholder="Ej. ¿Cuál es el horario?" />
+            </label>
+            <label class="settings-form-field chatbot-faq-field">
+                <span>Palabras clave (opcional)</span>
+                <input type="text" data-field="keywords" placeholder="horario, atención" />
+            </label>
+        </div>
+        <label class="settings-form-field chatbot-faq-field chatbot-faq-answer">
+            <span>Respuesta para el cliente</span>
+            <textarea rows="2" data-field="answer" placeholder="Describe la respuesta que el chatbot mostrará"></textarea>
+        </label>
+        <button type="button" class="chatbot-faq-remove" data-action="remove-chatbot-faq" aria-label="Eliminar pregunta">
+            &times;
+        </button>
+    `;
+
+    const questionInput = row.querySelector('[data-field="question"]');
+    const keywordsInput = row.querySelector('[data-field="keywords"]');
+    const answerInput = row.querySelector('[data-field="answer"]');
+
+    if (questionInput) {
+        questionInput.value = faq.question ?? '';
+    }
+
+    if (keywordsInput) {
+        keywordsInput.value = Array.isArray(faq.keywords) ? faq.keywords.join(', ') : '';
+    }
+
+    if (answerInput) {
+        answerInput.value = faq.answer ?? '';
+    }
+
+    return row;
+}
+
+function updateChatbotFaqEmptyState() {
+    const list = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    const empty = getElement(DASHBOARD_SELECTORS.settingsChatbotEmpty);
+    if (!list || !empty) {
+        return;
+    }
+
+    const hasRows = Boolean(list.querySelector('[data-chatbot-row]'));
+    empty.classList.toggle('hidden', hasRows);
+}
+
+function renderChatbotSettingsFaqs(faqs = []) {
+    const list = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    const entries = Array.isArray(faqs) && faqs.length ? faqs : [];
+
+    if (!entries.length) {
+        updateChatbotFaqEmptyState();
+        return;
+    }
+
+    entries.forEach((faq) => {
+        const row = createChatbotFaqRow(faq);
+        list.appendChild(row);
+    });
+
+    updateChatbotFaqEmptyState();
+}
+
 function getSettingsFromForm() {
     const form = getElement(DASHBOARD_SELECTORS.settingsForm);
     if (!form) return {};
@@ -2270,7 +2452,28 @@ function getSettingsFromForm() {
         tagline: form.elements.tagline?.value.trim() || '',
         themeColor: form.elements.themeColor?.value || '#6366f1',
         logoUrl: form.elements.logoUrl?.value.trim() || '',
-        portalBaseUrl: form.elements.portalBaseUrl?.value.trim() || ''
+        portalBaseUrl: form.elements.portalBaseUrl?.value.trim() || '',
+        chatbotEnabled: Boolean(form.elements.chatbotEnabled?.checked),
+        chatbotName: form.elements.chatbotName?.value.trim() || '',
+        chatbotWelcome: form.elements.chatbotWelcome?.value.trim() || '',
+        chatbotFaqs: Array.from(form.querySelectorAll('[data-chatbot-row]'))
+            .map((row) => {
+                const question = row.querySelector('[data-field="question"]')?.value.trim() || '';
+                const answer = row.querySelector('[data-field="answer"]')?.value.trim() || '';
+                const keywordsValue = row.querySelector('[data-field="keywords"]')?.value || '';
+                const keywords = parseKeywordList(keywordsValue);
+
+                if (!question || !answer) {
+                    return null;
+                }
+
+                return {
+                    question,
+                    answer,
+                    keywords
+                };
+            })
+            .filter(Boolean)
     };
 }
 
@@ -2282,7 +2485,11 @@ const SETTINGS_KEY_MAP = {
     tagline: 'tagline',
     themeColor: 'theme_color',
     logoUrl: 'logo_url',
-    portalBaseUrl: 'portal_base_url'
+    portalBaseUrl: 'portal_base_url',
+    chatbotEnabled: 'chatbot_enabled',
+    chatbotName: 'chatbot_name',
+    chatbotWelcome: 'chatbot_welcome',
+    chatbotFaqs: 'chatbot_faqs'
 };
 
 async function handleSettingsSubmit(event) {
@@ -2306,7 +2513,22 @@ async function handleSettingsSubmit(event) {
     const form = event.currentTarget;
     const payload = Object.entries(formSettings).map(([key, value]) => ({
         key: SETTINGS_KEY_MAP[key] ?? key,
-        value: typeof value === 'string' ? value : String(value ?? '')
+        value: (() => {
+            if (Array.isArray(value)) {
+                return JSON.stringify(value);
+            }
+            if (typeof value === 'boolean') {
+                return value ? 'true' : 'false';
+            }
+            if (value && typeof value === 'object') {
+                try {
+                    return JSON.stringify(value);
+                } catch (error) {
+                    return '';
+                }
+            }
+            return typeof value === 'string' ? value : String(value ?? '');
+        })()
     }));
 
     setFeedback(DASHBOARD_SELECTORS.settingsFeedback, 'Guardando configuración…', 'info');
@@ -2347,6 +2569,33 @@ function handleSettingsPreviewChange() {
     if (formSettings.themeColor) {
         document.documentElement.style.setProperty('--dashboard-accent', formSettings.themeColor);
     }
+}
+
+function handleChatbotFaqAdd(event) {
+    event.preventDefault();
+    const list = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    if (!list) return;
+
+    const row = createChatbotFaqRow({});
+    list.appendChild(row);
+    updateChatbotFaqEmptyState();
+
+    const questionInput = row.querySelector('[data-field="question"]');
+    if (questionInput) {
+        questionInput.focus();
+    }
+}
+
+function handleChatbotFaqListClick(event) {
+    const removeButton = event.target.closest('[data-action="remove-chatbot-faq"]');
+    if (!removeButton) {
+        return;
+    }
+
+    event.preventDefault();
+    const row = removeButton.closest('[data-chatbot-row]');
+    row?.remove();
+    updateChatbotFaqEmptyState();
 }
 
 function populateSaleProductOptions(products) {
@@ -3393,6 +3642,11 @@ export function initDashboard({ supabase }) {
     const settingsForm = getElement(DASHBOARD_SELECTORS.settingsForm);
     settingsForm?.addEventListener('submit', handleSettingsSubmit);
     settingsForm?.addEventListener('input', handleSettingsPreviewChange);
+
+    const chatbotAddButton = getElement(DASHBOARD_SELECTORS.settingsChatbotAddButton);
+    const chatbotFaqList = getElement(DASHBOARD_SELECTORS.settingsChatbotList);
+    chatbotAddButton?.addEventListener('click', handleChatbotFaqAdd);
+    chatbotFaqList?.addEventListener('click', handleChatbotFaqListClick);
 
     const portalToggleButton = getElement(DASHBOARD_SELECTORS.portalFormToggle);
     const portalForm = getElement(DASHBOARD_SELECTORS.portalForm);

@@ -582,6 +582,31 @@
                             <span class="field-note">Incluye <code>{{slug}}</code> para insertar el identificador del portal en la liga que compartirás; si lo omites se añadirá automáticamente como parámetro <code>?portal=</code>.</span>
                         </label>
                     </div>
+                    <fieldset class="settings-chatbot">
+                        <legend>Chatbot para el portal de clientes</legend>
+                        <p class="settings-chatbot-hint">Activa un asistente virtual que responderá preguntas frecuentes desde el portal público.</p>
+                        <label class="settings-form-field settings-chatbot-toggle">
+                            <span>Activar chatbot</span>
+                            <input type="checkbox" name="chatbotEnabled" id="chatbotEnabled" />
+                        </label>
+                        <label class="settings-form-field">
+                            <span>Nombre del asistente</span>
+                            <input type="text" name="chatbotName" placeholder="Ej. Asistente virtual" />
+                        </label>
+                        <label class="settings-form-field wide">
+                            <span>Mensaje de bienvenida</span>
+                            <textarea name="chatbotWelcome" rows="2" placeholder="Mensaje inicial que verá el cliente"></textarea>
+                        </label>
+                        <div class="chatbot-faq-config">
+                            <header class="chatbot-faq-header">
+                                <h4>Preguntas frecuentes</h4>
+                                <p>Estas preguntas se mostrarán como accesos directos y el bot intentará reconocerlas si el cliente las escribe.</p>
+                            </header>
+                            <div class="chatbot-faq-list" id="chatbotFaqList" aria-live="polite"></div>
+                            <p class="chatbot-faq-empty" data-chatbot-empty>No has agregado preguntas frecuentes. Usa el botón para crear la primera.</p>
+                            <button type="button" class="chatbot-faq-add" id="addChatbotFaq">Agregar pregunta frecuente</button>
+                        </div>
+                    </fieldset>
                     <div class="settings-form-actions">
                         <button type="submit" class="settings-form-submit">Guardar configuración</button>
                     </div>

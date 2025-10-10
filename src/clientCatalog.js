@@ -4,6 +4,20 @@ let activePortal = null;
 let portalProducts = [];
 const selectedItems = new Map();
 
+const defaultChatbotConfig = {
+    enabled: false,
+    name: 'Asistente virtual',
+    welcome: 'Hola, soy tu asistente virtual. ¿En qué puedo ayudarte hoy?',
+    faqs: []
+};
+
+let chatbotConfig = { ...defaultChatbotConfig };
+
+const chatbotState = {
+    isOpen: false,
+    hasWelcomed: false
+};
+
 const DEFAULT_HERO_IMAGE =
     'https://images.unsplash.com/photo-1456406644174-8ddd4cd52a06?auto=format&fit=crop&w=1200&q=80';
 const PRODUCT_PLACEHOLDER = '🛒';
@@ -29,6 +43,563 @@ function cacheElements() {
     elements.summaryTotal = document.querySelector('[data-portal-total]');
     elements.requestForm = document.getElementById('clientRequestForm');
     elements.requestFeedback = document.querySelector('[data-feedback="client-request"]');
+    elements.chatbotContainer = document.querySelector('[data-chatbot-container]');
+    elements.chatbotToggle = document.querySelector('[data-chatbot-toggle]');
+    elements.chatbotWindow = document.querySelector('[data-chatbot-window]');
+    elements.chatbotClose = document.querySelector('[data-chatbot-close]');
+    elements.chatbotTitle = document.querySelector('[data-chatbot-title]');
+    elements.chatbotSubtitle = document.querySelector('[data-chatbot-subtitle]');
+    elements.chatbotMessages = document.getElementById('clientChatbotMessages');
+    elements.chatbotQuick = document.getElementById('clientChatbotQuick');
+    elements.chatbotForm = document.getElementById('clientChatbotForm');
+    elements.chatbotInput = document.getElementById('clientChatbotInput');
+    elements.chatbotTyping = document.querySelector('[data-chatbot-typing]');
+}
+
+function normalizeText(value) {
+    return String(value ?? '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getMessageTokens(normalizedMessage) {
+    if (!normalizedMessage) {
+        return new Set();
+    }
+
+    return new Set(
+        normalizedMessage
+            .split(' ')
+            .map((token) => token.trim())
+            .filter(Boolean)
+    );
+}
+
+function parseKeywordList(value) {
+    return parseArrayField(value)
+        .map((item) => String(item ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 10);
+}
+
+function buildFaqMatchers(question, keywords = []) {
+    const matchers = new Set();
+    const normalizedQuestion = normalizeText(question);
+
+    if (normalizedQuestion) {
+        matchers.add(normalizedQuestion);
+        normalizedQuestion.split(' ').forEach((part) => {
+            if (part.length >= 4) {
+                matchers.add(part);
+            }
+        });
+    }
+
+    keywords.forEach((keyword) => {
+        const normalizedKeyword = normalizeText(keyword);
+        if (!normalizedKeyword) {
+            return;
+        }
+
+        matchers.add(normalizedKeyword);
+        normalizedKeyword.split(' ').forEach((part) => {
+            if (part.length >= 3) {
+                matchers.add(part);
+            }
+        });
+    });
+
+    return Array.from(matchers).filter(Boolean);
+}
+
+function normalizeChatbotFaqs(value) {
+    if (!value && value !== 0) {
+        return [];
+    }
+
+    let entries = value;
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return [];
+        }
+
+        try {
+            entries = JSON.parse(trimmed);
+        } catch (error) {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(entries)) {
+        return [];
+    }
+
+    return entries
+        .map((item) => {
+            if (!item || typeof item !== 'object') {
+                return null;
+            }
+
+            const question = String(item.question ?? '').trim();
+            const answer = String(item.answer ?? '').trim();
+            const keywords = parseKeywordList(item.keywords ?? item.tags ?? []);
+
+            if (!question || !answer) {
+                return null;
+            }
+
+            return {
+                question,
+                answer,
+                keywords,
+                matchers: buildFaqMatchers(question, keywords)
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 12);
+}
+
+function normalizeChatbotSettingsRecords(records) {
+    if (!Array.isArray(records)) {
+        return {};
+    }
+
+    const config = {};
+
+    records.forEach((record) => {
+        if (!record || typeof record !== 'object') {
+            return;
+        }
+
+        const key = (record.key ?? record.name ?? record.setting_key ?? '').toLowerCase();
+        const rawValue = record.value ?? record.setting_value ?? record.content ?? '';
+
+        switch (key) {
+            case 'chatbot_enabled':
+            case 'chatbotenabled':
+                config.enabled = rawValue === true || rawValue === 'true' || rawValue === '1';
+                break;
+            case 'chatbot_name':
+            case 'chatbotname':
+                config.name = typeof rawValue === 'string' ? rawValue.trim() : '';
+                break;
+            case 'chatbot_welcome':
+            case 'chatbotwelcome':
+                config.welcome = typeof rawValue === 'string' ? rawValue.trim() : '';
+                break;
+            case 'chatbot_faqs':
+            case 'chatbotfaqs':
+                config.faqs = normalizeChatbotFaqs(rawValue);
+                break;
+            default:
+                break;
+        }
+    });
+
+    return config;
+}
+
+function mergeChatbotConfig(portal, settingsConfig = {}) {
+    const merged = { ...defaultChatbotConfig };
+
+    if (settingsConfig && typeof settingsConfig === 'object') {
+        if (typeof settingsConfig.enabled === 'boolean') {
+            merged.enabled = settingsConfig.enabled;
+        }
+        if (settingsConfig.name) {
+            merged.name = settingsConfig.name;
+        }
+        if (settingsConfig.welcome) {
+            merged.welcome = settingsConfig.welcome;
+        }
+        if (Array.isArray(settingsConfig.faqs) && settingsConfig.faqs.length) {
+            merged.faqs = settingsConfig.faqs;
+        }
+    }
+
+    if (portal && typeof portal === 'object') {
+        if (typeof portal.chatbotEnabled === 'boolean') {
+            merged.enabled = portal.chatbotEnabled;
+        }
+        if (portal.chatbotName) {
+            merged.name = portal.chatbotName;
+        }
+        if (portal.chatbotWelcome) {
+            merged.welcome = portal.chatbotWelcome;
+        }
+        if (Array.isArray(portal.chatbotFaqs) && portal.chatbotFaqs.length) {
+            merged.faqs = portal.chatbotFaqs;
+        }
+    }
+
+    merged.faqs = normalizeChatbotFaqs(merged.faqs);
+
+    if (!merged.welcome) {
+        merged.welcome = defaultChatbotConfig.welcome;
+    }
+
+    if (!merged.name) {
+        merged.name = defaultChatbotConfig.name;
+    }
+
+    return merged;
+}
+
+function setChatbotVisibility(enabled) {
+    const container = elements.chatbotContainer;
+    if (!container) {
+        return;
+    }
+
+    container.classList.toggle('hidden', !enabled);
+    container.setAttribute('data-chatbot-active', enabled ? 'true' : 'false');
+
+    if (!enabled) {
+        closeChatbot();
+        resetChatbotConversation();
+        renderChatbotQuickReplies([]);
+    }
+}
+
+function renderChatbotQuickReplies(faqs = []) {
+    const quick = elements.chatbotQuick;
+    if (!quick) {
+        return;
+    }
+
+    quick.innerHTML = '';
+
+    if (!Array.isArray(faqs) || !faqs.length) {
+        quick.classList.add('hidden');
+        quick.setAttribute('aria-hidden', 'true');
+        return;
+    }
+
+    quick.classList.remove('hidden');
+    quick.setAttribute('aria-hidden', 'false');
+
+    faqs.slice(0, 6).forEach((faq) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'client-portal-chatbot-quick-button';
+        button.dataset.question = faq.question;
+        button.dataset.answer = faq.answer;
+        button.textContent = faq.question;
+        quick.appendChild(button);
+    });
+}
+
+function setChatbotTyping(isTyping) {
+    const typing = elements.chatbotTyping;
+    if (!typing) {
+        return;
+    }
+
+    typing.classList.toggle('is-active', Boolean(isTyping));
+}
+
+function appendChatbotMessage(type, message) {
+    const container = elements.chatbotMessages;
+    if (!container) {
+        return;
+    }
+
+    const text = String(message ?? '').trim();
+    if (!text) {
+        return;
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = `client-portal-chatbot-message ${type === 'user' ? 'user' : 'bot'}`;
+
+    const lines = text.split(/\n/);
+    lines.forEach((line, index) => {
+        if (index > 0) {
+            bubble.appendChild(document.createElement('br'));
+        }
+        bubble.appendChild(document.createTextNode(line));
+    });
+
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+}
+
+function resetChatbotConversation() {
+    const container = elements.chatbotMessages;
+    if (container) {
+        container.innerHTML = '';
+    }
+    chatbotState.hasWelcomed = false;
+    setChatbotTyping(false);
+}
+
+function ensureChatbotGreeting() {
+    if (chatbotState.hasWelcomed) {
+        return;
+    }
+
+    if (chatbotConfig.welcome) {
+        appendChatbotMessage('bot', chatbotConfig.welcome);
+    }
+
+    chatbotState.hasWelcomed = true;
+}
+
+function openChatbot() {
+    if (!chatbotConfig.enabled) {
+        return;
+    }
+
+    chatbotState.isOpen = true;
+
+    elements.chatbotWindow?.removeAttribute('hidden');
+    elements.chatbotWindow?.classList.add('is-visible');
+    elements.chatbotToggle?.setAttribute('aria-expanded', 'true');
+    elements.chatbotContainer?.classList.add('is-open');
+
+    if (chatbotConfig.enabled) {
+        ensureChatbotGreeting();
+    }
+
+    requestAnimationFrame(() => {
+        elements.chatbotInput?.focus();
+    });
+}
+
+function closeChatbot({ restoreFocus = false } = {}) {
+    const wasOpen = chatbotState.isOpen;
+    chatbotState.isOpen = false;
+
+    elements.chatbotWindow?.setAttribute('hidden', 'true');
+    elements.chatbotWindow?.classList.remove('is-visible');
+    elements.chatbotToggle?.setAttribute('aria-expanded', 'false');
+    elements.chatbotContainer?.classList.remove('is-open');
+
+    if (restoreFocus && wasOpen) {
+        elements.chatbotToggle?.focus();
+    }
+}
+
+function handleChatbotToggle(event) {
+    event?.preventDefault();
+    if (chatbotState.isOpen) {
+        closeChatbot();
+    } else {
+        openChatbot();
+    }
+}
+
+function scoreChatbotFaqMatch(normalizedMessage, messageTokens, faq) {
+    if (!faq || !Array.isArray(faq.matchers) || !faq.matchers.length) {
+        return 0;
+    }
+
+    let score = 0;
+
+    for (const matcher of faq.matchers) {
+        const normalizedMatcher = normalizeText(matcher);
+        if (!normalizedMatcher) {
+            continue;
+        }
+
+        if (normalizedMessage === normalizedMatcher) {
+            score += 8;
+            continue;
+        }
+
+        if (messageTokens.has(normalizedMatcher)) {
+            score += normalizedMatcher.length >= 6 ? 3 : 2;
+            continue;
+        }
+
+        if (normalizedMessage.includes(normalizedMatcher)) {
+            const wordCount = normalizedMatcher.split(' ').filter(Boolean).length;
+            score += wordCount > 1 ? 4 : 1;
+        }
+    }
+
+    return score;
+}
+
+function findChatbotAnswer(message) {
+    if (!Array.isArray(chatbotConfig.faqs) || !chatbotConfig.faqs.length) {
+        return null;
+    }
+
+    const normalizedMessage = normalizeText(message);
+    if (!normalizedMessage) {
+        return null;
+    }
+
+    const messageTokens = getMessageTokens(normalizedMessage);
+
+    let bestMatch = null;
+    let bestScore = 0;
+
+    chatbotConfig.faqs.forEach((faq) => {
+        const score = scoreChatbotFaqMatch(normalizedMessage, messageTokens, faq);
+        if (score > bestScore) {
+            bestMatch = faq;
+            bestScore = score;
+        }
+    });
+
+    return bestScore > 0 ? bestMatch : null;
+}
+
+function buildChatbotFallbackMessage() {
+    const suggestions = Array.isArray(chatbotConfig.faqs)
+        ? chatbotConfig.faqs.slice(0, 3).map((faq) => `• ${faq.question}`)
+        : [];
+
+    const contactOptions = [];
+    if (activePortal?.contactEmail) {
+        contactOptions.push(`correo ${activePortal.contactEmail}`);
+    }
+    if (activePortal?.contactPhone) {
+        contactOptions.push(`teléfono ${activePortal.contactPhone}`);
+    }
+
+    let message = 'Gracias por tu mensaje. En breve un asesor te contactará.';
+
+    if (suggestions.length) {
+        message = `No estoy seguro de esa respuesta, pero puedo ayudarte con:\n${suggestions.join('\n')}`;
+    }
+
+    if (contactOptions.length) {
+        const contactText = contactOptions.join(' o ');
+        message += `${suggestions.length ? '\n\n' : ' '}También puedes contactarnos por ${contactText}.`;
+    }
+
+    return message;
+}
+
+function respondToUserMessage(message, { directAnswer = null } = {}) {
+    const trimmed = String(message ?? '').trim();
+    if (!trimmed) {
+        return;
+    }
+
+    ensureChatbotGreeting();
+    appendChatbotMessage('user', trimmed);
+
+    const fallback = buildChatbotFallbackMessage();
+
+    if (!chatbotConfig.enabled) {
+        appendChatbotMessage('bot', fallback);
+        return;
+    }
+
+    const match = directAnswer ? null : findChatbotAnswer(trimmed);
+    const answerText = directAnswer || match?.answer || null;
+
+    setChatbotTyping(true);
+    setTimeout(() => {
+        setChatbotTyping(false);
+        appendChatbotMessage('bot', answerText || fallback);
+    }, 300);
+}
+
+function handleChatbotFormSubmit(event) {
+    event.preventDefault();
+
+    if (!chatbotConfig.enabled) {
+        return;
+    }
+
+    const input = elements.chatbotInput;
+    const value = input?.value?.trim() || '';
+    if (!value) {
+        return;
+    }
+
+    input.value = '';
+    respondToUserMessage(value);
+}
+
+function handleChatbotQuickClick(event) {
+    const button = event.target.closest('button[data-question]');
+    if (!button) {
+        return;
+    }
+
+    event.preventDefault();
+
+    if (!chatbotState.isOpen) {
+        openChatbot();
+    }
+
+    const question = button.dataset.question || '';
+    const answer = button.dataset.answer || '';
+
+    if (question) {
+        respondToUserMessage(question, { directAnswer: answer || null });
+    }
+}
+
+function handleChatbotKeydown(event) {
+    if (event.key === 'Escape' && chatbotState.isOpen) {
+        event.preventDefault();
+        closeChatbot({ restoreFocus: true });
+    }
+}
+
+function applyChatbotConfig(config, portal) {
+    chatbotConfig = {
+        ...defaultChatbotConfig,
+        ...config
+    };
+
+    chatbotConfig.faqs = normalizeChatbotFaqs(chatbotConfig.faqs);
+    chatbotConfig.enabled = Boolean(chatbotConfig.enabled);
+    chatbotState.hasWelcomed = false;
+
+    const accent = portal?.accentColor || document.documentElement.style.getPropertyValue('--portal-public-accent') || '#6366f1';
+    if (elements.chatbotContainer) {
+        elements.chatbotContainer.style.setProperty('--chatbot-accent', (accent || '#6366f1').trim() || '#6366f1');
+    }
+
+    setChatbotVisibility(chatbotConfig.enabled);
+
+    if (!chatbotConfig.enabled) {
+        return;
+    }
+
+    if (elements.chatbotTitle) {
+        elements.chatbotTitle.textContent = chatbotConfig.name || defaultChatbotConfig.name;
+    }
+
+    if (elements.chatbotSubtitle) {
+        elements.chatbotSubtitle.textContent = 'Escríbenos tus dudas y responderemos en minutos.';
+    }
+
+    resetChatbotConversation();
+    renderChatbotQuickReplies(chatbotConfig.faqs);
+}
+
+async function fetchChatbotSettings() {
+    try {
+        const { data, error } = await supabase
+            .from('settings')
+            .select('key, value')
+            .in('key', ['chatbot_enabled', 'chatbot_name', 'chatbot_welcome', 'chatbot_faqs']);
+
+        if (error) {
+            console.warn('No fue posible obtener la configuración del chatbot:', error.message);
+            return null;
+        }
+
+        return normalizeChatbotSettingsRecords(data);
+    } catch (error) {
+        console.error('Error inesperado al cargar la configuración del chatbot desde Supabase:', error);
+        return null;
+    }
 }
 
 function ensureHeroImageFallback() {
@@ -189,11 +760,15 @@ function showPortalError(message) {
     if (description && message) {
         description.textContent = message;
     }
+    setChatbotVisibility(false);
 }
 
 function setAccentColor(color) {
     const accent = color || '#6366f1';
     document.documentElement.style.setProperty('--portal-public-accent', accent);
+    if (elements.chatbotContainer) {
+        elements.chatbotContainer.style.setProperty('--chatbot-accent', accent);
+    }
 }
 
 function updateHero(portal) {
@@ -697,6 +1272,10 @@ function normalizePortalRecord(record, slug) {
         contactPhone: record.contact_phone ?? record.phone ?? '',
         bannerImage,
         bannerImageUrl: resolveMediaUrl(bannerImage),
+        chatbotEnabled: Boolean(record.chatbot_enabled ?? record.chatbotEnabled ?? false),
+        chatbotName: record.chatbot_name ?? record.chatbotName ?? '',
+        chatbotWelcome: record.chatbot_welcome ?? record.chatbotWelcome ?? '',
+        chatbotFaqs: normalizeChatbotFaqs(record.chatbot_faqs ?? record.chatbotFaqs ?? []),
         terms,
         productIds,
         heroVideo: record.hero_video ?? record.heroVideo ?? '',
@@ -808,8 +1387,15 @@ async function loadPortalData() {
     updateHero(portal);
     renderTerms(portal.terms);
 
-    const remoteProducts = await fetchProductsFromSupabase(portal);
+    const [remoteProducts, chatbotSettings] = await Promise.all([
+        fetchProductsFromSupabase(portal),
+        fetchChatbotSettings()
+    ]);
+
     portalProducts = remoteProducts;
+
+    const mergedChatbotConfig = mergeChatbotConfig(portal, chatbotSettings || {});
+    applyChatbotConfig(mergedChatbotConfig, portal);
 
     selectedItems.clear();
     setRequestFeedback();
@@ -824,6 +1410,11 @@ function initEventListeners() {
     elements.summaryList?.addEventListener('click', handleSummaryClick);
     elements.summaryList?.addEventListener('input', handleSummaryClick);
     elements.requestForm?.addEventListener('submit', handleRequestSubmit);
+    elements.chatbotToggle?.addEventListener('click', handleChatbotToggle);
+    elements.chatbotClose?.addEventListener('click', () => closeChatbot({ restoreFocus: true }));
+    elements.chatbotForm?.addEventListener('submit', handleChatbotFormSubmit);
+    elements.chatbotQuick?.addEventListener('click', handleChatbotQuickClick);
+    document.addEventListener('keydown', handleChatbotKeydown);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

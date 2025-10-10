@@ -16,6 +16,16 @@ values
     (
         'portal_base_url',
         'https://{REEMPLAZA_CON_TU_DOMINIO}/client-portal.html?portal={{slug}}'
+    ),
+    ('chatbot_enabled', 'true'),
+    ('chatbot_name', 'Asistente virtual'),
+    (
+        'chatbot_welcome',
+        '¡Hola! Soy tu asistente virtual. Puedo ayudarte con preguntas frecuentes sobre el catálogo.'
+    ),
+    (
+        'chatbot_faqs',
+        '[{"question":"¿Cuál es el horario de atención?","answer":"Nuestro horario comercial es de lunes a viernes de 8:00 a.m. a 5:00 p.m.","keywords":["horario","atencion","abren"]},{"question":"¿Cómo funcionan las entregas?","answer":"Coordinamos entregas en todo el país en un plazo de 24 a 48 horas, dependiendo de la zona.","keywords":["entrega","envio","despacho"]},{"question":"¿Qué métodos de pago aceptan?","answer":"Aceptamos transferencias bancarias, SINPE móvil y tarjetas de crédito o débito.","keywords":["pago","pagar","metodo"]}]'
     )
 ON CONFLICT (key) DO UPDATE SET value = excluded.value;
 
@@ -30,6 +40,10 @@ insert into public.portals (
     hero_title,
     hero_subtitle,
     banner_image,
+    chatbot_enabled,
+    chatbot_name,
+    chatbot_welcome,
+    chatbot_faqs,
     terms
 ) values (
     'catalogo-digital',
@@ -41,6 +55,10 @@ insert into public.portals (
     'Explora nuestro catálogo mayorista',
     'Selecciona lo que necesitas y envía tu solicitud en cuestión de minutos.',
     'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1600&q=80',
+    true,
+    'Asistente virtual',
+    '¡Hola! Estoy aquí para ayudarte a navegar el catálogo y resolver tus dudas frecuentes.',
+    '[{"question":"¿Cuál es el horario de atención?","answer":"Trabajamos de lunes a viernes de 8:00 a.m. a 5:00 p.m.","keywords":["horario","hora","atencion"]},{"question":"¿Tienen entregas a todo el país?","answer":"Sí, realizamos entregas a todo el país mediante mensajería especializada.","keywords":["envio","entrega","envían"]},{"question":"¿Cómo puedo contactar a un asesor?","answer":"Escríbenos a ventas@catalogodigital.cr o al +506 8888 8888 y te atenderemos con gusto.","keywords":["contacto","asesor","telefono"]}]'::jsonb,
     ARRAY['Precios sujetos a cambios sin previo aviso.', 'Entregas en todo el país en 48 horas.']
 ) on conflict (slug) do update set
     name = excluded.name,

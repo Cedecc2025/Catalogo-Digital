@@ -60,6 +60,10 @@ create table if not exists public.portals (
     hero_video text,
     hero_media_type text,
     request_intro text,
+    chatbot_enabled boolean default false,
+    chatbot_name text,
+    chatbot_welcome text,
+    chatbot_faqs jsonb default '[]'::jsonb,
     terms text[] default '{}',
     product_ids uuid[] default '{}',
     created_at timestamptz default timezone('utc', now()),
@@ -68,6 +72,12 @@ create table if not exists public.portals (
 
 alter table public.portals
     enable row level security;
+
+alter table public.portals
+    add column if not exists chatbot_enabled boolean default false,
+    add column if not exists chatbot_name text,
+    add column if not exists chatbot_welcome text,
+    add column if not exists chatbot_faqs jsonb default '[]'::jsonb;
 
 drop policy if exists "Portals are publicly readable" on public.portals;
 
@@ -214,7 +224,26 @@ drop policy if exists "Settings are readable by authenticated users" on public.s
 create policy "Settings are readable by authenticated users"
     on public.settings
     for select
-    using (auth.role() = 'authenticated');
+    using (
+        auth.role() = 'authenticated'
+        or (
+            auth.role() = 'anonymous'
+            and key in (
+                'company_name',
+                'company_email',
+                'company_phone',
+                'company_address',
+                'tagline',
+                'theme_color',
+                'logo_url',
+                'portal_base_url',
+                'chatbot_enabled',
+                'chatbot_name',
+                'chatbot_welcome',
+                'chatbot_faqs'
+            )
+        )
+    );
 
 drop policy if exists "Settings are manageable by authenticated users" on public.settings;
 
