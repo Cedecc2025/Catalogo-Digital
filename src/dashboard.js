@@ -122,40 +122,6 @@ const SALE_REQUEST_PENDING_STATUSES = new Set([
     'por atender'
 ]);
 
-function getDefaultSettings() {
-    return cloneData(defaultDashboardState.settings || {});
-}
-
-function mergeSettingsWithDefaults(settings = {}) {
-    const defaults = getDefaultSettings();
-    const merged = { ...defaults };
-
-    if (settings && typeof settings === 'object') {
-        Object.entries(settings).forEach(([key, value]) => {
-            merged[key] = value;
-        });
-    }
-
-    if (!merged.portalBaseUrl) {
-        merged.portalBaseUrl = defaults.portalBaseUrl || '';
-    }
-
-    if (typeof merged.portalBaseUrl === 'string') {
-        merged.portalBaseUrl = merged.portalBaseUrl.trim();
-    }
-
-    if (!merged.themeColor) {
-        merged.themeColor = defaults.themeColor || '#6366f1';
-    }
-
-    merged.chatbotEnabled = Boolean(merged.chatbotEnabled);
-    merged.chatbotName = merged.chatbotName || defaults.chatbotName;
-    merged.chatbotWelcome = merged.chatbotWelcome || defaults.chatbotWelcome;
-    merged.chatbotFaqs = normalizeChatbotFaqs(merged.chatbotFaqs);
-
-    return merged;
-}
-
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -229,6 +195,13 @@ function parseArrayField(value) {
             .split(',')
             .map((item) => item.trim())
             .filter(Boolean);
+    }
+
+    if (typeof value === 'object') {
+        return Object.values(value).filter(Boolean);
+    }
+
+    return [];
 }
 
 function parseKeywordList(value) {
@@ -288,11 +261,38 @@ function normalizeChatbotFaqs(value) {
         .slice(0, 12);
 }
 
-    if (typeof value === 'object') {
-        return Object.values(value).filter(Boolean);
+function getDefaultSettings() {
+    return cloneData(defaultDashboardState.settings || {});
+}
+
+function mergeSettingsWithDefaults(settings = {}) {
+    const defaults = getDefaultSettings();
+    const merged = { ...defaults };
+
+    if (settings && typeof settings === 'object') {
+        Object.entries(settings).forEach(([key, value]) => {
+            merged[key] = value;
+        });
     }
 
-    return [];
+    if (!merged.portalBaseUrl) {
+        merged.portalBaseUrl = defaults.portalBaseUrl || '';
+    }
+
+    if (typeof merged.portalBaseUrl === 'string') {
+        merged.portalBaseUrl = merged.portalBaseUrl.trim();
+    }
+
+    if (!merged.themeColor) {
+        merged.themeColor = defaults.themeColor || '#6366f1';
+    }
+
+    merged.chatbotEnabled = Boolean(merged.chatbotEnabled);
+    merged.chatbotName = merged.chatbotName || defaults.chatbotName;
+    merged.chatbotWelcome = merged.chatbotWelcome || defaults.chatbotWelcome;
+    merged.chatbotFaqs = normalizeChatbotFaqs(merged.chatbotFaqs);
+
+    return merged;
 }
 
 function parseJsonItems(items) {
