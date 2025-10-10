@@ -84,6 +84,7 @@ function cloneData(data) {
 let currentData = cloneData(defaultDashboardState);
 let supabaseClient = null;
 let activeSupabaseUserId = null;
+let currentDataOwnerId = null;
 let activePanel = 'overview';
 let isAddProductFormVisible = false;
 let editingProductId = null;
@@ -328,14 +329,17 @@ function extractRecordOwner(record) {
     return { hasOwnerField: false, ownerId: null };
 }
 
-function filterRecordsForActiveUser(records) {
+function getActiveUserId() {
+    return activeSupabaseUserId ? String(activeSupabaseUserId) : null;
+}
+
+function filterRecordsForActiveUser(records, userId = getActiveUserId()) {
     if (!Array.isArray(records) || records.length === 0) {
         return Array.isArray(records) ? records : [];
     }
 
-    const userId = activeSupabaseUserId ? String(activeSupabaseUserId) : null;
     if (!userId) {
-        return records;
+        return [];
     }
 
     return records.filter((record) => {
@@ -803,6 +807,11 @@ async function loadDashboardDataFromSupabase() {
         return;
     }
 
+    const userId = getActiveUserId();
+    if (!userId) {
+        return;
+    }
+
     isFetchingDashboardData = true;
 
     try {
@@ -824,16 +833,16 @@ async function loadDashboardDataFromSupabase() {
             fetchTableData('settings')
         ]);
 
-        const filteredPortalsRaw = filterRecordsForActiveUser(portalsRaw);
+        const filteredPortalsRaw = filterRecordsForActiveUser(portalsRaw, userId);
         const filteredProductsRaw = filterProductsByPortals(
-            filterRecordsForActiveUser(productsRaw),
+            filterRecordsForActiveUser(productsRaw, userId),
             filteredPortalsRaw
         );
-        const filteredSalesRaw = filterRecordsForActiveUser(salesRaw);
-        const filteredSaleRequestsRaw = filterRecordsForActiveUser(saleRequestsRaw);
-        const filteredClientsRaw = filterRecordsForActiveUser(clientsRaw);
-        const filteredInventoryRaw = filterRecordsForActiveUser(inventoryRaw);
-        const filteredSettingsRaw = filterRecordsForActiveUser(settingsRaw);
+        const filteredSalesRaw = filterRecordsForActiveUser(salesRaw, userId);
+        const filteredSaleRequestsRaw = filterRecordsForActiveUser(saleRequestsRaw, userId);
+        const filteredClientsRaw = filterRecordsForActiveUser(clientsRaw, userId);
+        const filteredInventoryRaw = filterRecordsForActiveUser(inventoryRaw, userId);
+        const filteredSettingsRaw = filterRecordsForActiveUser(settingsRaw, userId);
 
         const normalized = {
             products: filteredProductsRaw.map(normalizeProductRecord),
@@ -845,10 +854,18 @@ async function loadDashboardDataFromSupabase() {
             settings: normalizeSettingsRecords(filteredSettingsRaw)
         };
 
+        if (userId !== getActiveUserId()) {
+            hasLoadedDashboardData = false;
+            return;
+        }
+
         currentData = normalized;
         selectedPortalSlug = currentData.portals.some((portal) => portal.slug === selectedPortalSlug)
             ? selectedPortalSlug
             : currentData.portals[0]?.slug ?? null;
+
+        currentDataOwnerId = userId;
+        lastLoadedUserId = userId;
 
         renderDashboard(currentData);
         setActivePanel(activePanel);
@@ -3884,6 +3901,7 @@ export function hideDashboard() {
     toggleAddSaleForm(false);
 
     activeSupabaseUserId = null;
+    currentDataOwnerId = null;
     setText(DASHBOARD_SELECTORS.userEmail, 'Invitado');
     resetLogoutButton();
     currentData = cloneData(defaultDashboardState);
@@ -3894,6 +3912,7 @@ export function hideDashboard() {
     pendingRealtimeRefresh = false;
     activePanel = 'overview';
     setActivePanel(activePanel);
+    renderDashboard(currentData);
 }
 
 export function setDashboardData(data) {
@@ -3909,6 +3928,8 @@ export function setDashboardData(data) {
         portals: Array.isArray(data.portals) ? cloneData(data.portals) : cloneData(defaultDashboardState.portals || []),
         settings: mergeSettingsWithDefaults(data.settings)
     };
+
+    currentDataOwnerId = getActiveUserId();
 
     renderDashboard(currentData);
 }
