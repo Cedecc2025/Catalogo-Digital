@@ -83,6 +83,7 @@ function cloneData(data) {
 
 let currentData = cloneData(defaultDashboardState);
 let supabaseClient = null;
+let activeSupabaseUserId = null;
 let activePanel = 'overview';
 let isAddProductFormVisible = false;
 let editingProductId = null;
@@ -293,6 +294,112 @@ function mergeSettingsWithDefaults(settings = {}) {
     merged.chatbotFaqs = normalizeChatbotFaqs(merged.chatbotFaqs);
 
     return merged;
+}
+
+const OWNER_ID_KEYS = [
+    'user_id',
+    'userId',
+    'owner_id',
+    'ownerId',
+    'created_by',
+    'createdBy',
+    'profile_id',
+    'profileId',
+    'account_id',
+    'accountId'
+];
+
+function extractRecordOwner(record) {
+    if (!record || typeof record !== 'object') {
+        return { hasOwnerField: false, ownerId: null };
+    }
+
+    for (const key of OWNER_ID_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(record, key)) {
+            const value = record[key];
+            if (value === null || value === undefined || value === '') {
+                return { hasOwnerField: true, ownerId: null };
+            }
+
+            return { hasOwnerField: true, ownerId: String(value) };
+        }
+    }
+
+    return { hasOwnerField: false, ownerId: null };
+}
+
+function filterRecordsForActiveUser(records) {
+    if (!Array.isArray(records) || records.length === 0) {
+        return Array.isArray(records) ? records : [];
+    }
+
+    const userId = activeSupabaseUserId ? String(activeSupabaseUserId) : null;
+    if (!userId) {
+        return records;
+    }
+
+    return records.filter((record) => {
+        const { hasOwnerField, ownerId } = extractRecordOwner(record);
+
+        if (!hasOwnerField) {
+            return true;
+        }
+
+        if (!ownerId) {
+            return false;
+        }
+
+        return ownerId === userId;
+    });
+}
+
+function filterProductsByPortals(products, portals) {
+    if (!Array.isArray(products) || products.length === 0) {
+        return Array.isArray(products) ? products : [];
+    }
+
+    const filteredPortals = Array.isArray(portals) ? portals : [];
+    if (!filteredPortals.length) {
+        return products;
+    }
+
+    const portalIds = new Set(
+        filteredPortals
+            .map((portal) => portal?.id)
+            .filter((value) => value !== undefined && value !== null)
+            .map(String)
+    );
+
+    const portalSlugs = new Set(
+        filteredPortals
+            .map((portal) => portal?.slug)
+            .filter((value) => value !== undefined && value !== null)
+            .map(String)
+    );
+
+    if (!portalIds.size && !portalSlugs.size) {
+        return products;
+    }
+
+    return products.filter((product) => {
+        if (!product || typeof product !== 'object') {
+            return false;
+        }
+
+        const portalId = product.portal_id ?? product.portalId ?? null;
+        const portalSlug = product.portal_slug ?? product.portalSlug ?? null;
+
+        if (portalId && portalIds.has(String(portalId))) {
+            return true;
+        }
+
+        if (portalSlug && portalSlugs.has(String(portalSlug))) {
+            return true;
+        }
+
+        const hasPortalReference = Boolean(portalId) || Boolean(portalSlug);
+        return !hasPortalReference;
+    });
 }
 
 function parseJsonItems(items) {
@@ -717,14 +824,25 @@ async function loadDashboardDataFromSupabase() {
             fetchTableData('settings')
         ]);
 
+        const filteredPortalsRaw = filterRecordsForActiveUser(portalsRaw);
+        const filteredProductsRaw = filterProductsByPortals(
+            filterRecordsForActiveUser(productsRaw),
+            filteredPortalsRaw
+        );
+        const filteredSalesRaw = filterRecordsForActiveUser(salesRaw);
+        const filteredSaleRequestsRaw = filterRecordsForActiveUser(saleRequestsRaw);
+        const filteredClientsRaw = filterRecordsForActiveUser(clientsRaw);
+        const filteredInventoryRaw = filterRecordsForActiveUser(inventoryRaw);
+        const filteredSettingsRaw = filterRecordsForActiveUser(settingsRaw);
+
         const normalized = {
-            products: productsRaw.map(normalizeProductRecord),
-            sales: salesRaw.map(normalizeSaleRecord),
-            saleRequests: saleRequestsRaw.map(normalizeSaleRequestRecord),
-            clients: clientsRaw.map(normalizeClientRecord),
-            inventoryAdjustments: inventoryRaw.map(normalizeInventoryAdjustmentRecord),
-            portals: portalsRaw.map(normalizePortalRecord).filter((portal) => portal.slug),
-            settings: normalizeSettingsRecords(settingsRaw)
+            products: filteredProductsRaw.map(normalizeProductRecord),
+            sales: filteredSalesRaw.map(normalizeSaleRecord),
+            saleRequests: filteredSaleRequestsRaw.map(normalizeSaleRequestRecord),
+            clients: filteredClientsRaw.map(normalizeClientRecord),
+            inventoryAdjustments: filteredInventoryRaw.map(normalizeInventoryAdjustmentRecord),
+            portals: filteredPortalsRaw.map(normalizePortalRecord).filter((portal) => portal.slug),
+            settings: normalizeSettingsRecords(filteredSettingsRaw)
         };
 
         currentData = normalized;
@@ -3735,6 +3853,8 @@ export async function showDashboard(session) {
     toggleSections(true);
     resetLogoutButton();
 
+    activeSupabaseUserId = session?.user?.id ?? null;
+
     const userEmail = session?.user?.email ?? 'Invitado';
     setText(DASHBOARD_SELECTORS.userEmail, userEmail);
 
@@ -3763,6 +3883,7 @@ export function hideDashboard() {
     toggleAddProductForm(false);
     toggleAddSaleForm(false);
 
+    activeSupabaseUserId = null;
     setText(DASHBOARD_SELECTORS.userEmail, 'Invitado');
     resetLogoutButton();
     currentData = cloneData(defaultDashboardState);
