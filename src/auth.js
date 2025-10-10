@@ -255,17 +255,111 @@ function persistButtonLabels() {
     });
 }
 
+function getAuthTabs() {
+    return Array.from(document.querySelectorAll('.auth-tab'));
+}
+
+function getAuthForms() {
+    return Array.from(document.querySelectorAll('.auth-form'));
+}
+
+function resolveAuthTarget(value) {
+    if (!value) return null;
+    if (value.endsWith('Form')) return value;
+    return `${value}Form`;
+}
+
+function setActiveAuthView(targetId, { focusField = false } = {}) {
+    if (!targetId) return false;
+
+    const tabs = getAuthTabs();
+    const forms = getAuthForms();
+    let matched = false;
+
+    tabs.forEach((tab) => {
+        const isActive = tab.dataset.target === targetId;
+        tab.classList.toggle('active', isActive);
+        tab.setAttribute('aria-selected', String(isActive));
+        tab.setAttribute('tabindex', isActive ? '0' : '-1');
+        if (isActive) {
+            matched = true;
+        }
+    });
+
+    forms.forEach((form) => {
+        const isActive = form.id === targetId;
+        form.classList.toggle('hidden', !isActive);
+        form.toggleAttribute('hidden', !isActive);
+        if (isActive) {
+            matched = true;
+            if (focusField) {
+                const firstField = form.querySelector('input, select, textarea');
+                if (firstField) {
+                    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+                        window.requestAnimationFrame(() => firstField.focus());
+                    } else {
+                        firstField.focus();
+                    }
+                }
+            }
+        }
+    });
+
+    return matched;
+}
+
+function readAuthViewFromLocation() {
+    if (typeof window === 'undefined') return null;
+
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = resolveAuthTarget(params.get('auth'));
+    if (fromQuery) return fromQuery;
+
+    const hashValue = window.location.hash.replace('#', '');
+    return resolveAuthTarget(hashValue);
+}
+
 function setupTabNavigation() {
-    const tabs = document.querySelectorAll('.auth-tab');
-    const forms = document.querySelectorAll('.auth-form');
+    const tabs = getAuthTabs();
+    if (!tabs.length) return;
+
+    const activate = (target, options) => {
+        const resolved = resolveAuthTarget(target);
+        if (resolved) {
+            setActiveAuthView(resolved, options);
+        }
+    };
 
     tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
-            const targetId = tab.dataset.target;
-            tabs.forEach((btn) => btn.classList.toggle('active', btn === tab));
-            forms.forEach((form) => form.classList.toggle('hidden', form.id !== targetId));
+            activate(tab.dataset.target, { focusField: true });
         });
     });
+
+    const switchers = document.querySelectorAll('[data-auth-switch]');
+    switchers.forEach((trigger) => {
+        trigger.addEventListener('click', (event) => {
+            const { authSwitch } = event.currentTarget.dataset;
+            activate(authSwitch, { focusField: true });
+        });
+    });
+
+    const initialTarget = readAuthViewFromLocation()
+        || tabs.find((tab) => tab.classList.contains('active'))?.dataset.target
+        || tabs[0]?.dataset.target;
+
+    if (initialTarget) {
+        setActiveAuthView(initialTarget, { focusField: false });
+    }
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('hashchange', () => {
+            const nextTarget = readAuthViewFromLocation();
+            if (nextTarget) {
+                setActiveAuthView(nextTarget, { focusField: true });
+            }
+        });
+    }
 }
 
 export function initAuth({ supabase, onLoginSuccess } = {}) {

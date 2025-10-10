@@ -180,6 +180,38 @@ body.dashboard-visible .page {
     color: #34d399;
 }
 
+.auth-switch {
+    margin-top: 1.25rem;
+    font-size: 0.9rem;
+    color: rgba(226, 232, 240, 0.75);
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-switch-link {
+    background: none;
+    border: none;
+    color: #6366f1;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.9rem;
+    text-decoration: underline;
+}
+
+.auth-switch-link:hover,
+.auth-switch-link:focus-visible {
+    color: #818cf8;
+}
+
+.auth-switch-link:focus-visible {
+    outline: 2px solid #818cf8;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
 .dashboard {
     background: rgba(15, 23, 42, 0.78);
     border-radius: 26px;

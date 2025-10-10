@@ -28,6 +28,10 @@
 
                 <button class="form-submit" type="submit">Entrar</button>
                 <p class="form-feedback" role="status" data-feedback-for="login"></p>
+                <p class="auth-switch" data-auth-context="login">
+                    ¿No tienes cuenta?
+                    <button class="auth-switch-link" type="button" data-auth-switch="register">Crea una aquí</button>
+                </p>
             </form>
 
             <form id="registerForm" class="auth-form hidden" autocomplete="on">
@@ -42,6 +46,10 @@
 
                 <button class="form-submit" type="submit">Crear cuenta</button>
                 <p class="form-feedback" role="status" data-feedback-for="register"></p>
+                <p class="auth-switch" data-auth-context="register">
+                    ¿Ya tienes una cuenta?
+                    <button class="auth-switch-link" type="button" data-auth-switch="login">Inicia sesión</button>
+                </p>
             </form>
         </section>
 
